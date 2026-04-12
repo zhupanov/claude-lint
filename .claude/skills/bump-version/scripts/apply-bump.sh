@@ -89,15 +89,25 @@ if [[ -f "$CARGO_TOML" ]]; then
     /^\[/ && !/^\[package\]/ { in_package=0 }
     in_package && /^version *= *"/ {
       sub(/"[^"]*"/, "\"" new_ver "\"")
+      substituted=1
     }
     { print }
+    END { if (!substituted) exit 1 }
   ' "$CARGO_TOML" > "$TMP_CARGO"
-  if [[ ! -s "$TMP_CARGO" ]]; then
+  AWK_EXIT=$?
+  if [[ $AWK_EXIT -ne 0 ]] || [[ ! -s "$TMP_CARGO" ]]; then
     rm -f "$TMP_CARGO"
     # Restore package.json from backup since we already rewrote it.
     mv "$BACKUP" "$VERSION_FILE"
     rm -f "$CARGO_BACKUP"
-    fail "Cargo.toml awk rewrite produced empty output"
+    fail "Cargo.toml awk rewrite failed: [package] version field not found or empty output"
+  fi
+  # Verify the new version appears in the rewritten file.
+  if ! grep -q "version = \"$NEW_VERSION\"" "$TMP_CARGO"; then
+    rm -f "$TMP_CARGO"
+    mv "$BACKUP" "$VERSION_FILE"
+    rm -f "$CARGO_BACKUP"
+    fail "Cargo.toml rewrite verification failed: version $NEW_VERSION not found in output"
   fi
   mv "$TMP_CARGO" "$CARGO_TOML"
 fi

@@ -69,10 +69,9 @@ jobs:
   build:
     needs: [auto-tag]
     if: >-
-      always() && (
-        github.ref_type == 'tag' ||
-        needs.auto-tag.outputs.should-release == 'true'
-      )
+      github.ref_type == 'tag' ||
+      needs.auto-tag.outputs.should-release == 'true' ||
+      github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -144,10 +143,9 @@ jobs:
     needs: [build, auto-tag]
     runs-on: ubuntu-latest
     if: >-
-      always() && (
-        github.ref_type == 'tag' ||
-        needs.auto-tag.outputs.should-release == 'true'
-      )
+      github.ref_type == 'tag' ||
+      needs.auto-tag.outputs.should-release == 'true' ||
+      github.event_name == 'workflow_dispatch'
     timeout-minutes: 10
 
     steps:
