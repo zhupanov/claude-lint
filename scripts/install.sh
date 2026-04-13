@@ -28,7 +28,13 @@ case "$OS" in
 esac
 
 case "$ARCH" in
-  x86_64)        TARGET_ARCH="x86_64" ;;
+  x86_64)
+    if [ "$OS" = "Darwin" ]; then
+      echo "::error::Intel macOS (x86_64) is not supported. Use an Apple Silicon (arm64) runner."
+      exit 1
+    fi
+    TARGET_ARCH="x86_64"
+    ;;
   aarch64|arm64) TARGET_ARCH="aarch64" ;;
   *)
     echo "::error::Unsupported architecture: $ARCH"
