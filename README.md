@@ -1,59 +1,74 @@
 # Claude Lint
 
-Claude Lint is a configuration linter for Claude Code. It validates
-`.claude/` and `.claude-plugin/` directory structures, catching
+A configuration linter for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+Validates `.claude/` and `.claude-plugin/` directory structures, catching
 misconfigurations before they reach production.
 
 ## Features
 
+- **81 lint rules** across 9 categories (Manifest, Hooks, Skills, Agents,
+  Hygiene, Email, User Config, Slack, Docs)
 - **Two lint modes**:
-  - **Basic mode** — validates `.claude/` contents (settings hooks, private
+  - **Basic mode** -- validates `.claude/` contents (settings, hooks, private
     skill frontmatter, script references, executability)
-  - **Plugin mode** — runs the full 25-validator suite when a
-    `.claude-plugin/` directory is present
-- **25 structural validators** covering manifests, hooks, skills, agents,
-  hygiene, docs, email, user config, and Slack conventions
+  - **Plugin mode** -- runs the full rule suite when `.claude-plugin/` is
+    present
+- **Configurable** -- suppress or downgrade rules via `claude-lint.toml`
 - **GitHub Action** for CI integration
 - **Cross-platform** binaries (Linux x86_64/aarch64, macOS aarch64)
 
-## Usage
+## Quick Start
 
 ### GitHub Action
 
-Add to your GitHub Actions workflow:
-
 ```yaml
-- uses: zhupanov/claude-lint@v0.2.2
+- uses: zhupanov/claude-lint@v1
   with:
     path: "."
 ```
-
-#### Inputs
-
-| Input | Description | Default |
-|-------|-------------|---------|
-| `version` | Version of claude-lint (e.g., `0.2.0`) | Latest release |
-| `path` | Path to the repository to lint | `"."` |
-| `github-token` | GitHub token for API requests | `${{ github.token }}` |
-
-> **Note:** Windows runners are not supported.
 
 ### CLI
 
 ```bash
 claude-lint [PATH]
-claude-lint --list-scripts [PATH]
 ```
 
-If `PATH` is omitted, lints the current directory. The tool detects the
-repository root via `git rev-parse --show-toplevel` and selects Basic or
-Plugin mode based on the presence of `.claude-plugin/`.
+If `PATH` is omitted, the current directory is used. The tool detects the
+repo root via `git rev-parse --show-toplevel` and selects Basic or Plugin
+mode automatically based on the presence of `.claude-plugin/`.
 
-#### `--list-scripts`
+## GitHub Action Inputs
 
-Prints all `.sh` script paths discovered in skill and script directories
-(one per line) and exits. Useful for piping to external tools like
-`shellcheck`:
+| Input | Description | Default |
+|-------|-------------|---------|
+| `version` | Version of claude-lint (e.g., `1.0.0`) | Latest release |
+| `path` | Path to the repository to lint | `"."` |
+| `github-token` | GitHub token for API requests | `""` (falls back to `github.token` at runtime) |
+
+> **Note:** Windows runners are not supported.
+
+## CLI Reference
+
+```text
+claude-lint [--list-scripts] [PATH]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--list-scripts` | Print all `.sh` script paths found in skill/script directories and exit |
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success (no errors, or only warnings) |
+| `1` | Lint errors found |
+| `2` | Invalid arguments or setup error (not a git repo, bad config, etc.) |
+
+### `--list-scripts`
+
+Outputs discovered shell scripts, one per line. Useful for piping to
+external tools:
 
 ```bash
 claude-lint --list-scripts . | xargs -r shellcheck
@@ -61,40 +76,94 @@ claude-lint --list-scripts . | xargs -r shellcheck
 
 The wrapper script `scripts/shellcheck-scripts.sh` automates this.
 
-## Prerequisites
+## Configuration
 
-- [Rust](https://rustup.rs/) (toolchain version is pinned in
-  `rust-toolchain.toml` and auto-installed by `rustup`)
-- [pre-commit](https://pre-commit.com/) for running linters locally
-- `jq` (used by the JSON lint hook)
+Claude Lint reads an optional **`claude-lint.toml`** file from the
+repository root.
+
+### File Format
+
+```toml
+[lint]
+ignore = ["M001", "plugin-json-missing"]   # suppress entirely
+warn   = ["G005", "security-md-missing"]   # downgrade to warning
+```
+
+### Options
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `ignore` | string array | Rules to suppress completely (no output, no exit code effect) |
+| `warn` | string array | Rules to downgrade from error to warning (printed, but exit 0) |
+
+### Rule Identifiers
+
+Rules can be referenced by **code** (e.g., `M001`) or **human-readable
+name** (e.g., `plugin-json-missing`). If a rule appears in both `ignore`
+and `warn`, `ignore` takes precedence.
+
+### Behavior Without Config
+
+If `claude-lint.toml` is absent, all rules are enabled as errors. A
+malformed config file or an unknown rule code/name causes exit code 2.
+
+### Diagnostic Output
+
+```text
+error[M001/plugin-json-missing]: .claude-plugin/plugin.json is missing
+warning[G005/security-md-missing]: SECURITY.md is missing from repo root
+```
+
+## Lint Rules
+
+Claude Lint ships **81 rules** organized into 9 categories:
+
+| Category | Prefix | Rules | Description |
+|----------|--------|-------|-------------|
+| Manifest | M | 11 | `plugin.json` and `marketplace.json` validation |
+| Hooks | H | 6 | `hooks.json` and `settings.json` hook paths |
+| Skills | S | 43 | Skill frontmatter, naming, descriptions, body content, security |
+| Agents | A | 7 | Agent frontmatter and template alignment |
+| Hygiene | G | 5 | `$PWD` hygiene, script integrity, executability, dead scripts |
+| Email | E | 1 | Email format validation |
+| User Config | U | 6 | `userConfig` structure and env var mapping |
+| Slack | K | 1 | Slack fallback consistency |
+| Docs | D | 1 | Docs file reference integrity |
+
+For the complete rule table with codes, names, descriptions, and modes,
+see **[docs/rules.md](docs/rules.md)**.
+
+### Lint Modes
+
+| Mode | Trigger | Scope |
+|------|---------|-------|
+| **Basic** | `.claude/` directory exists | Settings hooks, private skill frontmatter, script refs, executability, both-mode S-rules |
+| **Plugin** | `.claude-plugin/` directory exists | All 81 rules including manifest, agents, hygiene, and plugin-only S-rules |
+
+If neither directory exists, the tool prints "Nothing to lint" and exits 0.
 
 ## Local Development
 
-### Install Rust
+### Prerequisites
 
-Install Rust via [rustup](https://rustup.rs/):
+- [Rust](https://rustup.rs/) (toolchain pinned in `rust-toolchain.toml`,
+  auto-installed by `rustup`)
+- [pre-commit](https://pre-commit.com/) for local linters
+- `jq` (used by the JSON lint hook)
+
+### Setup
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-The project pins its toolchain via `rust-toolchain.toml`. Once `rustup` is
-installed, it will automatically download and use the correct Rust version
-(including `clippy` and `rustfmt` components) when you run any `cargo`
-command from this repository.
-
-### Set up linters
-
-```bash
 pip install pre-commit
 make setup   # runs: pre-commit install
 ```
 
-### Makefile targets
+### Makefile Targets
 
 | Target | Command | Description |
 |--------|---------|-------------|
-| `make lint` | `pre-commit run --all-files` | Run all linters (shell, markdown, JSON, YAML, Rust) |
+| `make lint` | `pre-commit run --all-files` | Run all linters |
 | `make cargo-test` | `cargo test` | Run Rust unit tests |
 | `make cargo-clippy` | `cargo clippy -- -D warnings` | Run Clippy with warnings as errors |
 | `make clippy` | `cargo clippy --all-targets -- -D warnings` | Run Clippy on all targets |
@@ -106,70 +175,31 @@ make setup   # runs: pre-commit install
 | `make actionlint` | `pre-commit run actionlint --all-files` | Lint GitHub Actions workflows |
 | `make setup` | `pre-commit install` | Install pre-commit git hooks |
 
-> **Note:** `make lint` also runs `cargo fmt` and `cargo clippy` via
-> pre-commit hooks defined in `.pre-commit-config.yaml`.
-
 ## Project Structure
 
 ```text
 src/
-├── main.rs              # CLI entry point: arg parsing, repo root, mode detection
-├── context.rs           # LintContext, ManifestState, LintMode
-├── diagnostic.rs        # DiagnosticCollector (error accumulator)
-├── frontmatter.rs       # YAML frontmatter extraction
-└── validators/
-    ├── mod.rs           # run_all → run_basic / run_plugin dispatch
-    ├── manifest.rs      # V1, V2, V12, V13 — plugin.json & marketplace.json
-    ├── hooks.rs         # V3, V4 — hooks.json & settings.json hook paths
-    ├── skills.rs        # V5, V6, V15 — skills layout & frontmatter
-    ├── agents.rs        # V7, V16, V21 — agent frontmatter & templates
-    ├── hygiene.rs       # V8–V11, V14 — PWD hygiene, scripts, executability
-    ├── docs.rs          # V22 — docs file references
-    ├── email.rs         # V17 — email format
-    ├── user_config.rs   # V18, V20, V23–V25 — userConfig validation
-    └── slack.rs         # V19 — Slack fallback consistency
++-- main.rs              # CLI entry point: arg parsing, repo root, mode detection
++-- config.rs            # claude-lint.toml loading and rule resolution
++-- context.rs           # LintContext, ManifestState, LintMode
++-- diagnostic.rs        # DiagnosticCollector, Severity, config-aware filtering
++-- frontmatter.rs       # YAML frontmatter extraction
++-- rules.rs             # Central LintRule enum (81 rules, codes, names)
++-- validators/
+    +-- mod.rs           # run_all -> run_basic / run_plugin dispatch
+    +-- manifest.rs      # M001-M011: plugin.json & marketplace.json
+    +-- hooks.rs         # H001-H006: hooks.json & settings.json
+    +-- skills.rs        # S001-S008: skills layout & frontmatter
+    +-- skill_content.rs # S009-S043: name, description, body, security checks
+    +-- agents.rs        # A001-A007: agent frontmatter & templates
+    +-- hygiene.rs       # G001-G005: PWD hygiene, scripts, executability
+    +-- docs.rs          # D001: docs file references
+    +-- email.rs         # E001: email format
+    +-- user_config.rs   # U001-U006: userConfig validation
+    +-- slack.rs         # K001: Slack fallback consistency
+docs/
++-- rules.md             # Complete lint rules reference table
 ```
-
-## Validators
-
-### Basic Mode (`.claude/` only)
-
-| ID | Check |
-|----|-------|
-| V4 | Settings.json hook command paths exist and are executable |
-| V6a | Private SKILL.md frontmatter (`.claude/skills/`) |
-| V9a | Private script reference integrity (`.claude/skills/`) |
-| V10a | Private script executability (`.claude/skills/*/scripts/`) |
-
-### Plugin Mode (all 25 checks)
-
-| ID | Check |
-|----|-------|
-| V1 | `plugin.json` required fields and semver version |
-| V2 | `marketplace.json` required fields and plugin entries |
-| V3 | `hooks/hooks.json` structure and hook command paths |
-| V4 | `settings.json` hook command paths |
-| V5 | Skills directory layout (`skills/*/SKILL.md`) |
-| V6 | SKILL.md frontmatter validation |
-| V7 | Agent frontmatter (`agents/*.md`) |
-| V8 | `$PWD` / hardcoded path hygiene in public skills |
-| V9 | Script reference integrity (all reference patterns) |
-| V10 | Shell script executability |
-| V11 | Dead script detection |
-| V12 | Marketplace enriched metadata |
-| V13 | Plugin enriched metadata |
-| V14 | `SECURITY.md` presence |
-| V15 | Shared markdown reference integrity |
-| V16 | Agent-template alignment |
-| V17 | Email format validation |
-| V18 | userConfig structure |
-| V19 | Slack fallback consistency |
-| V20 | userConfig → env var mapping |
-| V21 | Agent-template count |
-| V22 | Docs file references from CLAUDE.md |
-| V23 | userConfig sensitive type |
-| V24 | userConfig title field |
-| V25 | userConfig type field |
 
 ## CI/CD
 
@@ -177,16 +207,19 @@ src/
 
 Runs on pull requests to `main`:
 
-- **lint** — pre-commit linters (shell, markdown, JSON, YAML, Rust fmt/clippy)
-- **build-and-test** — `cargo build`, `cargo test`, `cargo clippy`
-- **musl-build** — cross-compilation check for `x86_64-unknown-linux-musl`
+- **lint** -- pre-commit linters (shell, markdown, JSON, YAML, Rust
+  fmt/clippy)
+- **build-and-test** -- `cargo build`, `cargo test`, `cargo clippy`
+- **musl-build** -- cross-compilation check for `x86_64-unknown-linux-musl`
+- **self-lint** -- runs claude-lint against its own repo and validates
+  `--list-scripts` output
 
 ### Release (`.github/workflows/release.yml`)
 
 Triggered on push to `main` or tag push:
 
-1. **auto-tag** — reads version from `package.json` / `Cargo.toml`, creates
+1. **auto-tag** -- reads version from `package.json` / `Cargo.toml`, creates
    a git tag if it doesn't exist
-2. **build** — cross-compiles for Linux (x86_64, aarch64 musl) and macOS
+2. **build** -- cross-compiles for Linux (x86_64, aarch64 musl) and macOS
    (aarch64)
-3. **release** — creates a GitHub Release with tarballs and checksums
+3. **release** -- creates a GitHub Release with tarballs and checksums
