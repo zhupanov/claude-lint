@@ -146,3 +146,81 @@ fn resolve_repo_root(target: &str) -> Result<String, String> {
     }
     Ok(root)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+
+    // ── detect_mode ──────────────────────────────────────────────────
+
+    #[test]
+    #[serial]
+    fn detect_mode_plugin_dir_returns_plugin() {
+        let _guard = test_helpers::CwdGuard::new();
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir(".claude-plugin").unwrap();
+        assert_eq!(detect_mode(), Some(context::LintMode::Plugin));
+    }
+
+    #[test]
+    #[serial]
+    fn detect_mode_basic_dir_returns_basic() {
+        let _guard = test_helpers::CwdGuard::new();
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir(".claude").unwrap();
+        assert_eq!(detect_mode(), Some(context::LintMode::Basic));
+    }
+
+    #[test]
+    #[serial]
+    fn detect_mode_plugin_takes_precedence_over_basic() {
+        let _guard = test_helpers::CwdGuard::new();
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir(".claude-plugin").unwrap();
+        std::fs::create_dir(".claude").unwrap();
+        assert_eq!(detect_mode(), Some(context::LintMode::Plugin));
+    }
+
+    #[test]
+    #[serial]
+    fn detect_mode_neither_dir_returns_none() {
+        let _guard = test_helpers::CwdGuard::new();
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        assert_eq!(detect_mode(), None);
+    }
+
+    // ── resolve_repo_root ────────────────────────────────────────────
+
+    #[test]
+    fn resolve_repo_root_valid_git_repo() {
+        // Use CARGO_MANIFEST_DIR (absolute) to avoid CWD races with serial tests.
+        let result = resolve_repo_root(env!("CARGO_MANIFEST_DIR"));
+        assert!(result.is_ok());
+        let root = result.unwrap();
+        assert!(!root.is_empty());
+        assert!(std::path::Path::new(&root).join(".git").exists());
+    }
+
+    #[test]
+    fn resolve_repo_root_non_git_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = resolve_repo_root(tmp.path().to_str().unwrap());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not inside a git repository"));
+    }
+
+    #[test]
+    fn resolve_repo_root_nonexistent_dir() {
+        let result = resolve_repo_root("/tmp/nonexistent-dir-999888777");
+        assert!(result.is_err());
+    }
+}
