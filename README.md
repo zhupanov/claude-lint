@@ -14,7 +14,7 @@ misconfigurations before they reach production.
 - **25 structural validators** covering manifests, hooks, skills, agents,
   hygiene, docs, email, user config, and Slack conventions
 - **GitHub Action** for CI integration
-- **Cross-platform** binaries (Linux x86_64/aarch64, macOS x86_64/aarch64)
+- **Cross-platform** binaries (Linux x86_64/aarch64, macOS aarch64)
 
 ## Usage
 
@@ -188,5 +188,5 @@ Triggered on push to `main` or tag push:
 1. **auto-tag** — reads version from `package.json` / `Cargo.toml`, creates
    a git tag if it doesn't exist
 2. **build** — cross-compiles for Linux (x86_64, aarch64 musl) and macOS
-   (x86_64, aarch64)
+   (aarch64)
 3. **release** — creates a GitHub Release with tarballs and checksums
