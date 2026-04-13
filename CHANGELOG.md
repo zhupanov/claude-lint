@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.8] - 2026-04-13
+
+### Added
+
+- File glob exclusion via `[lint] exclude` in `claude-lint.toml` — matching files are
+  completely invisible to the linter (no rules checked, no diagnostics produced)
+- `ExcludeSet` wrapper with path normalization (`./` stripping, backslash conversion)
+- Glob semantics matching `.gitignore` conventions (`*` single level, `**` recursive)
+- Exclusion support in `--list-scripts` output
+- 22 new unit and integration tests for exclude feature
+
 ## [1.0.5] - 2026-04-13
 
 ### Fixed
