@@ -1,6 +1,6 @@
 [package]
 name = "claude-lint"
-version = "1.0.7"
+version = "1.0.8"
 edition = "2024"
 rust-version = "1.85.0"
 license = "MIT"
@@ -12,6 +12,7 @@ serde_json = "1"
 regex = "1"
 walkdir = "2"
 toml = "0.8"
+globset = "0.4"
 
 [dev-dependencies]
 tempfile = "3"

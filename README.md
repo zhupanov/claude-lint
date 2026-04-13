@@ -149,6 +149,7 @@ repository root.
 [lint]
 ignore = ["M001", "G005"]                  # suppress entirely (by code)
 warn   = ["plugin-json-invalid"]           # downgrade to warning (by name)
+exclude = ["docs/*.md", "skills/internal-*/**"]  # skip files matching globs
 ```
 
 ### Options
@@ -157,6 +158,7 @@ warn   = ["plugin-json-invalid"]           # downgrade to warning (by name)
 |-----|------|-------------|
 | `ignore` | string array | Rules to suppress completely (no output, no exit code effect) |
 | `warn` | string array | Rules to downgrade from error to warning (printed, but exit 0) |
+| `exclude` | string array | File glob patterns -- matching files are skipped entirely |
 
 ### Rule Identifiers
 
@@ -164,10 +166,29 @@ Rules can be referenced by **code** (e.g., `M001`) or **human-readable
 name** (e.g., `plugin-json-missing`). If a rule appears in both `ignore`
 and `warn`, `ignore` takes precedence.
 
+### File Exclusion
+
+The `exclude` option accepts a list of glob patterns. Files matching any
+pattern are completely invisible to the linter -- no rules are checked
+and no diagnostics are produced for them.
+
+**Glob semantics** (matching `.gitignore` conventions):
+
+- `*` matches any characters except `/` (single directory level)
+- `**` matches across directory boundaries (recursive)
+- `docs/*.md` matches `docs/readme.md` but **not** `docs/sub/nested.md`
+- `docs/**/*.md` matches both `docs/readme.md` and `docs/sub/nested.md`
+
+**Scope**: File exclusion applies to file-walking validators (skills,
+agents, scripts, docs). It does **not** apply to fixed-path structural
+checks (e.g., `plugin.json` must exist, `SECURITY.md` must exist). Use
+`ignore` to suppress those rules instead.
+
 ### Behavior Without Config
 
-If `claude-lint.toml` is absent, all rules are enabled as errors. A
-malformed config file or an unknown rule code/name causes exit code 2.
+If `claude-lint.toml` is absent, all rules are enabled as errors and no
+files are excluded. A malformed config file, unknown rule code/name, or
+invalid glob pattern causes exit code 2.
 
 ### Diagnostic Output
 

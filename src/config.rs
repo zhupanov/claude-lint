@@ -1,4 +1,5 @@
 use crate::rules::LintRule;
+use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::Path;
@@ -17,6 +18,8 @@ struct RawLintSection {
     ignore: Vec<String>,
     #[serde(default)]
     warn: Vec<String>,
+    #[serde(default)]
+    exclude: Vec<String>,
 }
 
 /// Resolved lint configuration. Rules in `ignore` are completely suppressed.
@@ -26,6 +29,59 @@ struct RawLintSection {
 pub struct LintConfig {
     pub ignore: HashSet<LintRule>,
     pub warn: HashSet<LintRule>,
+    pub exclude: Vec<String>,
+}
+
+/// Compiled glob set for file exclusion. Wraps `globset::GlobSet` and provides
+/// path normalization. Use `ExcludeSet::default()` for an empty set that matches
+/// nothing.
+pub struct ExcludeSet {
+    globs: GlobSet,
+}
+
+impl Default for ExcludeSet {
+    fn default() -> Self {
+        Self {
+            globs: GlobSet::empty(),
+        }
+    }
+}
+
+impl ExcludeSet {
+    /// Build an `ExcludeSet` from raw glob pattern strings.
+    /// Returns `Err` if any pattern is invalid.
+    pub fn new(patterns: &[String]) -> Result<Self, String> {
+        if patterns.is_empty() {
+            return Ok(Self::default());
+        }
+        let mut builder = GlobSetBuilder::new();
+        for pattern in patterns {
+            let glob = GlobBuilder::new(pattern)
+                .literal_separator(true)
+                .build()
+                .map_err(|e| format!("invalid exclude glob pattern '{pattern}': {e}"))?;
+            builder.add(glob);
+        }
+        let globs = builder
+            .build()
+            .map_err(|e| format!("failed to compile exclude patterns: {e}"))?;
+        Ok(Self { globs })
+    }
+
+    /// Check whether a path should be excluded from linting.
+    /// Normalizes the path before matching: strips leading `./` and
+    /// converts backslashes to forward slashes.
+    pub fn is_excluded(&self, path: &str) -> bool {
+        let normalized = normalize_path(path);
+        self.globs.is_match(&normalized)
+    }
+}
+
+/// Normalize a path for consistent glob matching: strip leading `./`,
+/// convert `\` to `/`.
+pub fn normalize_path(path: &str) -> String {
+    let s = path.replace('\\', "/");
+    s.strip_prefix("./").unwrap_or(&s).to_string()
 }
 
 impl LintConfig {
@@ -72,7 +128,21 @@ impl LintConfig {
             }
         }
 
-        Ok(Self { ignore, warn })
+        // Validate exclude patterns at load time (compile a throwaway GlobSet).
+        ExcludeSet::new(&section.exclude).map_err(|e| format!("{}: {e}", path.display()))?;
+
+        Ok(Self {
+            ignore,
+            warn,
+            exclude: section.exclude,
+        })
+    }
+
+    /// Build a compiled `ExcludeSet` from this config's exclude patterns.
+    /// This should be called once after loading and passed through to validators.
+    pub fn build_exclude_set(&self) -> ExcludeSet {
+        // Patterns were already validated in load(), so unwrap is safe.
+        ExcludeSet::new(&self.exclude).expect("exclude patterns were validated at load time")
     }
 }
 
@@ -206,6 +276,184 @@ mod tests {
         assert!(
             err.contains("unknown field"),
             "Expected unknown field error, got: {err}"
+        );
+    }
+
+    // ── Exclude patterns ────────────────────────────────────────────
+
+    #[test]
+    #[serial_test::serial]
+    fn exclude_parsed_from_config() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("claude-lint.toml"),
+            "[lint]\nexclude = [\"docs/*.md\", \"skills/internal/**\"]\n",
+        )
+        .unwrap();
+        let config = LintConfig::load(tmp.path().to_str().unwrap()).unwrap();
+        assert_eq!(config.exclude.len(), 2);
+        assert_eq!(config.exclude[0], "docs/*.md");
+        assert_eq!(config.exclude[1], "skills/internal/**");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn empty_exclude_is_valid() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("claude-lint.toml"),
+            "[lint]\nexclude = []\n",
+        )
+        .unwrap();
+        let config = LintConfig::load(tmp.path().to_str().unwrap()).unwrap();
+        assert!(config.exclude.is_empty());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn missing_exclude_defaults_to_empty() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("claude-lint.toml"),
+            "[lint]\nignore = [\"M001\"]\n",
+        )
+        .unwrap();
+        let config = LintConfig::load(tmp.path().to_str().unwrap()).unwrap();
+        assert!(config.exclude.is_empty());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn invalid_exclude_pattern_returns_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("claude-lint.toml"),
+            "[lint]\nexclude = [\"[invalid\"]\n",
+        )
+        .unwrap();
+        let err = LintConfig::load(tmp.path().to_str().unwrap()).unwrap_err();
+        assert!(
+            err.contains("invalid exclude glob"),
+            "Expected invalid glob error, got: {err}"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn exclude_not_array_returns_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("claude-lint.toml"),
+            "[lint]\nexclude = \"not-an-array\"\n",
+        )
+        .unwrap();
+        let err = LintConfig::load(tmp.path().to_str().unwrap()).unwrap_err();
+        assert!(!err.is_empty());
+    }
+
+    // ── ExcludeSet ──────────────────────────────────────────────────
+
+    #[test]
+    fn exclude_set_empty_matches_nothing() {
+        let set = ExcludeSet::default();
+        assert!(!set.is_excluded("skills/foo/SKILL.md"));
+        assert!(!set.is_excluded("anything"));
+    }
+
+    #[test]
+    fn exclude_set_star_matches_single_level() {
+        let set = ExcludeSet::new(&["docs/*.md".to_string()]).unwrap();
+        assert!(set.is_excluded("docs/readme.md"));
+        assert!(set.is_excluded("docs/architecture.md"));
+        // * does NOT match across path separators
+        assert!(!set.is_excluded("docs/sub/nested.md"));
+    }
+
+    #[test]
+    fn exclude_set_double_star_matches_recursive() {
+        let set = ExcludeSet::new(&["docs/**/*.md".to_string()]).unwrap();
+        assert!(set.is_excluded("docs/readme.md"));
+        assert!(set.is_excluded("docs/sub/nested.md"));
+        assert!(set.is_excluded("docs/a/b/c.md"));
+    }
+
+    #[test]
+    fn exclude_set_skill_pattern() {
+        let set = ExcludeSet::new(&["skills/my-skill/**".to_string()]).unwrap();
+        assert!(set.is_excluded("skills/my-skill/SKILL.md"));
+        assert!(set.is_excluded("skills/my-skill/scripts/helper.sh"));
+        assert!(!set.is_excluded("skills/other-skill/SKILL.md"));
+    }
+
+    #[test]
+    fn exclude_set_normalizes_dot_slash() {
+        let set = ExcludeSet::new(&["skills/*/SKILL.md".to_string()]).unwrap();
+        // With leading ./
+        assert!(set.is_excluded("./skills/my-skill/SKILL.md"));
+        // Without leading ./
+        assert!(set.is_excluded("skills/my-skill/SKILL.md"));
+    }
+
+    #[test]
+    fn exclude_set_normalizes_backslashes() {
+        let set = ExcludeSet::new(&["skills/*/SKILL.md".to_string()]).unwrap();
+        assert!(set.is_excluded("skills\\my-skill\\SKILL.md"));
+    }
+
+    #[test]
+    fn exclude_set_multiple_patterns() {
+        let set = ExcludeSet::new(&[
+            "agents/internal.md".to_string(),
+            "skills/deprecated-*/**".to_string(),
+        ])
+        .unwrap();
+        assert!(set.is_excluded("agents/internal.md"));
+        assert!(set.is_excluded("skills/deprecated-old/SKILL.md"));
+        assert!(!set.is_excluded("agents/general.md"));
+        assert!(!set.is_excluded("skills/active/SKILL.md"));
+    }
+
+    #[test]
+    fn exclude_set_exact_file() {
+        let set = ExcludeSet::new(&["CLAUDE.md".to_string()]).unwrap();
+        assert!(set.is_excluded("CLAUDE.md"));
+        assert!(!set.is_excluded("README.md"));
+    }
+
+    #[test]
+    fn exclude_set_invalid_pattern_error() {
+        let result = ExcludeSet::new(&["[invalid".to_string()]);
+        assert!(result.is_err());
+    }
+
+    // ── normalize_path ──────────────────────────────────────────────
+
+    #[test]
+    fn normalize_strips_dot_slash() {
+        assert_eq!(
+            normalize_path("./skills/foo/SKILL.md"),
+            "skills/foo/SKILL.md"
+        );
+    }
+
+    #[test]
+    fn normalize_no_dot_slash_unchanged() {
+        assert_eq!(normalize_path("skills/foo/SKILL.md"), "skills/foo/SKILL.md");
+    }
+
+    #[test]
+    fn normalize_backslash_to_forward() {
+        assert_eq!(
+            normalize_path("skills\\foo\\SKILL.md"),
+            "skills/foo/SKILL.md"
+        );
+    }
+
+    #[test]
+    fn normalize_mixed_separators() {
+        assert_eq!(
+            normalize_path(".\\skills/foo\\SKILL.md"),
+            "skills/foo/SKILL.md"
         );
     }
 }

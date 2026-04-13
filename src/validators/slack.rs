@@ -1,10 +1,11 @@
+use crate::config::ExcludeSet;
 use crate::diagnostic::DiagnosticCollector;
 use crate::rules::LintRule;
 use std::fs;
 use std::path::Path;
 
 /// V19: Slack fallback consistency (larch-specific convention check).
-pub fn validate_slack_fallback_consistency(diag: &mut DiagnosticCollector) {
+pub fn validate_slack_fallback_consistency(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let scripts_dir = Path::new("scripts");
     if !scripts_dir.is_dir() {
         return;
@@ -36,6 +37,11 @@ pub fn validate_slack_fallback_consistency(diag: &mut DiagnosticCollector) {
             Some(n) if n.ends_with(".sh") => n.to_string(),
             _ => continue,
         };
+
+        let script_path = format!("scripts/{name}");
+        if exclude.is_excluded(&script_path) {
+            continue;
+        }
 
         let content = match fs::read_to_string(&path) {
             Ok(c) => c,
@@ -69,7 +75,7 @@ mod tests {
         std::env::set_current_dir(tmp.path()).unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_slack_fallback_consistency(&mut diag);
+        validate_slack_fallback_consistency(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -88,7 +94,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_slack_fallback_consistency(&mut diag);
+        validate_slack_fallback_consistency(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("CLAUDE_PLUGIN_OPTION_SLACK_BOT_TOKEN"));
     }
@@ -108,7 +114,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_slack_fallback_consistency(&mut diag);
+        validate_slack_fallback_consistency(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -127,7 +133,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_slack_fallback_consistency(&mut diag);
+        validate_slack_fallback_consistency(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 2);
     }
 }

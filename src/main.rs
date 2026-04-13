@@ -63,15 +63,6 @@ fn main() {
         }
     };
 
-    // --list-scripts: print discovered script paths and exit.
-    if list_scripts {
-        let scripts = validators::hygiene::collect_script_paths(mode);
-        for path in &scripts {
-            println!("{path}");
-        }
-        std::process::exit(0);
-    }
-
     // Load configuration AFTER mode detection (so "Nothing to lint" repos
     // are not affected by malformed config files).
     let lint_config = match LintConfig::load(&repo_root) {
@@ -82,10 +73,21 @@ fn main() {
         }
     };
 
+    let exclude = lint_config.build_exclude_set();
+
+    // --list-scripts: print discovered script paths and exit.
+    if list_scripts {
+        let scripts = validators::hygiene::collect_script_paths(mode, &exclude);
+        for path in &scripts {
+            println!("{path}");
+        }
+        std::process::exit(0);
+    }
+
     let ctx = LintContext::new(repo_root.clone(), mode);
     let mut diag = DiagnosticCollector::with_config(lint_config);
 
-    validators::run_all(&ctx, &mut diag);
+    validators::run_all(&ctx, &mut diag, &exclude);
 
     let errors = diag.error_count();
     let warnings = diag.warning_count();
