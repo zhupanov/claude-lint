@@ -246,6 +246,33 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_body_crlf() {
+        let content = "---\r\nname: foo\r\n---\r\nBody text here\r\n";
+        assert_eq!(extract_body(content), "Body text here\r\n");
+    }
+
+    #[test]
+    fn test_extract_body_crlf_empty() {
+        let content = "---\r\nname: foo\r\n---\r\n";
+        assert_eq!(extract_body(content), "");
+    }
+
+    #[test]
+    fn test_extract_body_delimiter_exact_match() {
+        // "----" inside frontmatter should not cut off the body
+        let content = "---\nname: foo\n----\ndescription: bar\n---\nBody text\n";
+        assert_eq!(extract_body(content), "Body text\n");
+    }
+
+    #[test]
+    fn test_extract_body_multiline() {
+        let content = "---\nname: foo\ndescription: bar\n---\nLine 1\nLine 2\nLine 3\n";
+        let body = extract_body(content);
+        assert_eq!(body, "Line 1\nLine 2\nLine 3\n");
+        assert_eq!(body.lines().count(), 3);
+    }
+
+    #[test]
     fn test_delimiter_exact_match() {
         // "----" should NOT be treated as a closing delimiter
         let content = "---\nname: foo\n----\ndescription: bar\n---\n";
