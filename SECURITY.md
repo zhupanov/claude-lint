@@ -21,4 +21,4 @@ You should receive an acknowledgment within 72 hours. We will work with you to u
 
 ## Trust Model
 
-Claude-lint is a standalone Rust CLI tool that statically analyzes Claude Code configuration files (CLAUDE.md, settings, MCP configs, etc.) against a set of lint rules. It reads files from the filesystem but does not modify them, execute arbitrary commands, or make network requests during linting.
+Claude-lint is a standalone Rust CLI tool that statically analyzes Claude Code configuration files (CLAUDE.md, settings, MCP configs, etc.) against a set of lint rules. It reads files from the filesystem but does not modify them or make network requests during linting. It invokes `git rev-parse --show-toplevel` as a read-only subprocess solely to locate the repository root.
