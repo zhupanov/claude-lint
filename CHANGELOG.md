@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.9] - 2026-04-13
+
+### Fixed
+
+- Fixed macOS install command in README — broken single pipe into three steps (download, extract, sudo mv) so the sudo password prompt no longer fights with curl's pipe for terminal control
+- Added cleanup of temp tarball after installation
+
 ## [1.0.8] - 2026-04-13
 
 ### Added
