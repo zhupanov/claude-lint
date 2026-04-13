@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-04-12
+
+### Added
+
+- Integration tests: mode dispatch with content rules, config ignore/warn for new S* rules
+- Boundary tests: S009 at 64 chars, S014 at 1024 chars, S019 at 500 lines, S034 at 20 chars
+- CRLF regression test for extract_body, delimiter exact-match test
+- collect_skills edge cases: empty dir, missing dir, malformed frontmatter, shared skipping
+- End-to-end tests: mixed repo (public + private), valid-skill golden-path sanity check
+
 ## [0.2.12] - 2026-04-12
 
 ### Added
