@@ -20,6 +20,7 @@ impl DiagnosticCollector {
     }
 
     /// Return collected error messages (used by tests for assertion).
+    #[cfg(test)]
     pub fn errors(&self) -> &[String] {
         &self.errors
     }
