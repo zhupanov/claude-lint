@@ -2432,4 +2432,336 @@ mod tests {
                 .any(|e| e.contains("backslash") && e.contains("frontmatter"))
         );
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Boundary tests
+    // ═══════════════════════════════════════════════════════════════════
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s009_boundary_64_chars_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        let name64 = "a".repeat(64);
+        std::fs::create_dir_all(format!("skills/{name64}")).unwrap();
+        std::fs::write(
+            format!("skills/{name64}/SKILL.md"),
+            format!(
+                "---\nname: {name64}\ndescription: Use when testing name length boundary\n---\nBody\n"
+            ),
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag);
+        assert!(!diag.errors().iter().any(|e| e.contains("exceeds 64")));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s014_boundary_1024_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        // "Use when testing " = 17 chars + 1007 x's = exactly 1024
+        let desc = format!("Use when testing {}", "x".repeat(1007));
+        assert_eq!(desc.len(), 1024);
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: {desc}\n---\nBody\n"),
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag);
+        assert!(!diag.errors().iter().any(|e| e.contains("exceeds 1024")));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s019_boundary_500_lines_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        let body = "line\n".repeat(500);
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!(
+                "---\nname: my-skill\ndescription: Use when testing body length boundary\n---\n{body}"
+            ),
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag);
+        assert!(!diag.errors().iter().any(|e| e.contains("exceeds 500")));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s020_non_empty_body_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when testing body presence\n---\nHas body content\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag);
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("no content after frontmatter"))
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s034_boundary_20_chars_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        // exactly 20 characters
+        let desc = "Use when needed now!";
+        assert_eq!(desc.len(), 20);
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: {desc}\n---\nBody\n"),
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag);
+        assert!(!diag.errors().iter().any(|e| e.contains("under 20")));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // collect_skills edge cases
+    // ═══════════════════════════════════════════════════════════════════
+
+    #[test]
+    #[serial_test::serial]
+    fn test_collect_skills_empty_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills").unwrap();
+        let skills = collect_skills("skills");
+        assert!(skills.is_empty());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_collect_skills_missing_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        let skills = collect_skills("skills");
+        assert!(skills.is_empty());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_collect_skills_skips_malformed_frontmatter() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/good-skill").unwrap();
+        std::fs::create_dir_all("skills/bad-skill").unwrap();
+        std::fs::write(
+            "skills/good-skill/SKILL.md",
+            "---\nname: good-skill\ndescription: A valid skill\n---\nBody\n",
+        )
+        .unwrap();
+        // Malformed: no closing ---
+        std::fs::write(
+            "skills/bad-skill/SKILL.md",
+            "---\nname: bad-skill\nno closing\n",
+        )
+        .unwrap();
+        let skills = collect_skills("skills");
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].dir_name, "good-skill");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_collect_skills_skips_shared() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::create_dir_all("skills/shared").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill\n---\nBody\n",
+        )
+        .unwrap();
+        std::fs::write("skills/shared/helpers.md", "# Helpers\n").unwrap();
+        let skills = collect_skills("skills");
+        assert_eq!(skills.len(), 1);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_collect_skills_populates_body() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill\n---\nBody content here\n",
+        )
+        .unwrap();
+        let skills = collect_skills("skills");
+        assert_eq!(skills.len(), 1);
+        assert!(skills[0].body.contains("Body content here"));
+        assert!(!skills[0].body.contains("---"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Config integration tests
+    // ═══════════════════════════════════════════════════════════════════
+
+    #[test]
+    #[serial_test::serial]
+    fn test_config_ignore_suppresses_new_rule() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        // Body empty (S020) + desc too short (S034). Use trigger context to avoid S017.
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when short\n---\n",
+        )
+        .unwrap();
+
+        // Without config: S020 and S034 should fire
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag);
+        assert!(diag.errors().iter().any(|e| e.contains("no content")));
+        assert!(diag.errors().iter().any(|e| e.contains("under 20")));
+
+        // With config ignoring S020
+        let config = crate::config::LintConfig {
+            ignore: std::collections::HashSet::from([LintRule::BodyEmpty]),
+            warn: std::collections::HashSet::new(),
+        };
+        let mut diag2 = DiagnosticCollector::with_config(config);
+        validate_skill_content(&mut diag2);
+        // S020 suppressed, S034 still fires
+        assert!(!diag2.errors().iter().any(|e| e.contains("no content")));
+        assert!(diag2.errors().iter().any(|e| e.contains("under 20")));
+        assert_eq!(
+            diag2.suppressed_count(),
+            1,
+            "S020 should be counted as suppressed"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_config_warn_downgrades_new_rule() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when short\n---\n",
+        )
+        .unwrap();
+
+        let config = crate::config::LintConfig {
+            ignore: std::collections::HashSet::new(),
+            warn: std::collections::HashSet::from([LintRule::DescTooShort]),
+        };
+        let mut diag = DiagnosticCollector::with_config(config);
+        validate_skill_content(&mut diag);
+        // S034 downgraded to warning, not counted as error
+        assert!(!diag.errors().iter().any(|e| e.contains("under 20")));
+        assert!(diag.warnings().iter().any(|e| e.contains("under 20")));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // End-to-end mode dispatch integration tests
+    // ═══════════════════════════════════════════════════════════════════
+
+    #[test]
+    #[serial_test::serial]
+    fn test_mixed_repo_both_modes_run() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        // Public skill with name issue (S010: uppercase)
+        std::fs::create_dir_all("skills/My-Skill").unwrap();
+        std::fs::write(
+            "skills/My-Skill/SKILL.md",
+            "---\nname: My-Skill\ndescription: Use when testing mixed mode validation\n---\nBody content\n",
+        )
+        .unwrap();
+
+        // Private skill — should NOT fire S016 (plugin-only person check)
+        std::fs::create_dir_all(".claude/skills/helper").unwrap();
+        std::fs::write(
+            ".claude/skills/helper/SKILL.md",
+            "---\nname: helper\ndescription: Helps you do things more efficiently here\n---\nBody content\n",
+        )
+        .unwrap();
+
+        // Plugin mode runs both public and private
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag);
+        validate_private_skill_content(&mut diag);
+
+        // S010 fires for public "My-Skill"
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("outside [a-z0-9-]"))
+        );
+        // S016 should NOT fire for private skill (plugin_mode=false)
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("first/second person") && e.contains(".claude"))
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_valid_skill_zero_errors() {
+        // A fully valid skill should produce zero errors from all content checks
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/code-review").unwrap();
+        std::fs::write(
+            "skills/code-review/SKILL.md",
+            "---\nname: code-review\ndescription: Use when code changes need thorough review and analysis\nuser-invocable: true\neffort: high\nshell: bash\nargument-hint: <PR number or branch name>\n---\n\n# Code Review\n\nPerform a thorough code review of the specified changes.\n\n## Steps\n\n1. Run the analysis on $ARGUMENTS\n2. Generate a summary report\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag);
+        let skill_errors: Vec<_> = diag
+            .errors()
+            .iter()
+            .filter(|e| e.contains("skills/code-review"))
+            .cloned()
+            .collect();
+        assert!(
+            skill_errors.is_empty(),
+            "Expected zero errors for valid skill, got: {skill_errors:?}"
+        );
+    }
 }

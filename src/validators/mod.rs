@@ -227,4 +227,125 @@ mod tests {
             "Basic mode should not validate agents/"
         );
     }
+
+    // Integration: run_all in basic mode fires skill content rules
+    #[test]
+    #[serial_test::serial]
+    fn test_run_all_basic_fires_content_rules() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir_all(".claude/skills/my-skill").unwrap();
+        // Empty body should trigger S020
+        std::fs::write(
+            ".claude/skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A skill that does useful things for developers\n---\n",
+        )
+        .unwrap();
+
+        let ctx = LintContext {
+            repo_root: tmp.path().to_string_lossy().to_string(),
+            mode: LintMode::Basic,
+            plugin_json: ManifestState::Missing,
+            marketplace_json: ManifestState::Missing,
+            hooks_json: ManifestState::Missing,
+            settings_json: ManifestState::Missing,
+        };
+        let mut diag = DiagnosticCollector::new();
+        run_all(&ctx, &mut diag);
+        assert!(
+            diag.errors().iter().any(|e| e.contains("no content")),
+            "Basic mode should fire S020 (body-empty) on private skills"
+        );
+    }
+
+    // Integration: run_all with config suppression
+    #[test]
+    #[serial_test::serial]
+    fn test_run_all_with_config_suppression() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir_all(".claude/skills/my-skill").unwrap();
+        std::fs::write(
+            ".claude/skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A skill that does useful things for developers\n---\n",
+        )
+        .unwrap();
+
+        // Suppress S020 via config
+        let config = crate::config::LintConfig {
+            ignore: std::collections::HashSet::from([crate::rules::LintRule::BodyEmpty]),
+            warn: std::collections::HashSet::new(),
+        };
+
+        let ctx = LintContext {
+            repo_root: tmp.path().to_string_lossy().to_string(),
+            mode: LintMode::Basic,
+            plugin_json: ManifestState::Missing,
+            marketplace_json: ManifestState::Missing,
+            hooks_json: ManifestState::Missing,
+            settings_json: ManifestState::Missing,
+        };
+        let mut diag = DiagnosticCollector::with_config(config);
+        run_all(&ctx, &mut diag);
+        assert!(
+            !diag.errors().iter().any(|e| e.contains("no content")),
+            "S020 should be suppressed by config"
+        );
+        assert_eq!(diag.suppressed_count(), 1);
+    }
+
+    // Integration: plugin mode fires plugin-only rules
+    #[test]
+    #[serial_test::serial]
+    fn test_run_all_plugin_fires_content_rules() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::create_dir_all("agents").unwrap();
+        std::fs::create_dir_all("scripts").unwrap();
+        // Skill with "you" in description — triggers S016 in plugin mode
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need to analyze code for issues\n---\nBody content here\n",
+        )
+        .unwrap();
+        std::fs::write("SECURITY.md", "# Security\n").unwrap();
+
+        let plugin_val = json!({
+            "name": "test-plugin",
+            "version": "1.0.0",
+            "description": "Test",
+            "author": {"email": "a@b.com"},
+            "keywords": ["test"]
+        });
+        let marketplace_val = json!({
+            "name": "test-mp",
+            "owner": {"name": "owner", "email": "a@b.com"},
+            "plugins": [{"name": "p", "source": "s", "category": "lint"}]
+        });
+        let hooks_val = json!({"hooks": []});
+
+        let ctx = LintContext {
+            repo_root: tmp.path().to_string_lossy().to_string(),
+            mode: LintMode::Plugin,
+            plugin_json: ManifestState::Parsed(plugin_val),
+            marketplace_json: ManifestState::Parsed(marketplace_val),
+            hooks_json: ManifestState::Parsed(hooks_val),
+            settings_json: ManifestState::Missing,
+        };
+        let mut diag = DiagnosticCollector::new();
+        run_all(&ctx, &mut diag);
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("first/second person")),
+            "Plugin mode should fire S016 (desc-uses-person)"
+        );
+    }
 }
