@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.3] - 2026-04-12
+
+### Added
+
+- Comprehensive unit tests for all validator modules (manifest, hooks, skills, agents, hygiene, docs, email, user_config, slack)
+- Integration-level dispatch tests for `run_all` Basic/Plugin mode selection
+- RAII `CwdGuard` test helper for panic-safe working directory restoration
+- `tempfile` and `serial_test` dev-dependencies for filesystem test fixtures
+- `DiagnosticCollector::errors()` accessor for test assertions
+
+### Changed
+
+- README.md rewritten with full documentation: features, usage, local development setup, project structure, validator reference, CI/CD overview
+- `run_plugin` now includes `validate_private_script_references` and `validate_private_executability` (previously only ran in Basic mode)
+- `to_upper_snake_case` rewritten to be O(n) and correctly handle uppercase-after-uppercase transitions
+
+### Fixed
+
+- README usage example updated from stale `args` input to current `path` input, version bumped from `v0.1.4` to `v0.2.2`
+
 ## [0.2.2] - 2026-04-12
 
 ### Added

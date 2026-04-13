@@ -55,3 +55,80 @@ pub fn validate_slack_fallback_consistency(diag: &mut DiagnosticCollector) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::diagnostic::DiagnosticCollector;
+
+    // V19: validate_slack_fallback_consistency
+    #[test]
+    #[serial_test::serial]
+    fn test_v19_no_scripts_dir_silent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        let mut diag = DiagnosticCollector::new();
+        validate_slack_fallback_consistency(&mut diag);
+        assert_eq!(diag.error_count(), 0);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_v19_fallback_without_plugin_var() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir_all("scripts").unwrap();
+        std::fs::write(
+            "scripts/slack.sh",
+            "#!/bin/bash\nTOKEN=${LARCH_SLACK_BOT_TOKEN:-default}\n",
+        )
+        .unwrap();
+
+        let mut diag = DiagnosticCollector::new();
+        validate_slack_fallback_consistency(&mut diag);
+        assert_eq!(diag.error_count(), 1);
+        assert!(diag.errors()[0].contains("CLAUDE_PLUGIN_OPTION_SLACK_BOT_TOKEN"));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_v19_fallback_with_plugin_var_pass() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir_all("scripts").unwrap();
+        std::fs::write(
+            "scripts/slack.sh",
+            "#!/bin/bash\nTOKEN=${LARCH_SLACK_BOT_TOKEN:-$CLAUDE_PLUGIN_OPTION_SLACK_BOT_TOKEN}\n",
+        )
+        .unwrap();
+
+        let mut diag = DiagnosticCollector::new();
+        validate_slack_fallback_consistency(&mut diag);
+        assert_eq!(diag.error_count(), 0);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_v19_multiple_vars_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir_all("scripts").unwrap();
+        std::fs::write(
+            "scripts/slack.sh",
+            "#!/bin/bash\nTOKEN=${LARCH_SLACK_BOT_TOKEN:-x}\nCH=${LARCH_SLACK_CHANNEL_ID:-y}\n",
+        )
+        .unwrap();
+
+        let mut diag = DiagnosticCollector::new();
+        validate_slack_fallback_consistency(&mut diag);
+        assert_eq!(diag.error_count(), 2);
+    }
+}

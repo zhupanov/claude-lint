@@ -18,4 +18,10 @@ impl DiagnosticCollector {
     pub fn error_count(&self) -> usize {
         self.errors.len()
     }
+
+    /// Return collected error messages (used by tests for assertion).
+    #[cfg(test)]
+    pub fn errors(&self) -> &[String] {
+        &self.errors
+    }
 }

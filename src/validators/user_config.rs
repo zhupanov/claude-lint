@@ -100,17 +100,20 @@ pub fn validate_userconfig_env_mapping(ctx: &LintContext, diag: &mut DiagnosticC
 /// - Uppercase everything
 fn to_upper_snake_case(key: &str) -> String {
     let mut result = String::new();
-    for (i, c) in key.chars().enumerate() {
+    let mut prev = '_';
+    for c in key.chars() {
         if c == '-' || c == '.' {
             result.push('_');
-        } else if c.is_uppercase() && i > 0 {
-            let prev = key.chars().nth(i - 1).unwrap_or('_');
+            prev = '_';
+        } else if c.is_uppercase() {
             if prev.is_lowercase() {
                 result.push('_');
             }
             result.push(c);
+            prev = c;
         } else {
             result.push(c);
+            prev = c;
         }
     }
     result.to_uppercase()
@@ -205,5 +208,185 @@ mod tests {
         assert_eq!(to_upper_snake_case("slack-channel-id"), "SLACK_CHANNEL_ID");
         assert_eq!(to_upper_snake_case("slack.user.id"), "SLACK_USER_ID");
         assert_eq!(to_upper_snake_case("simple"), "SIMPLE");
+    }
+
+    fn make_ctx(plugin: ManifestState) -> LintContext {
+        LintContext {
+            repo_root: String::new(),
+            mode: crate::context::LintMode::Plugin,
+            plugin_json: plugin,
+            marketplace_json: ManifestState::Missing,
+            hooks_json: ManifestState::Missing,
+            settings_json: ManifestState::Missing,
+        }
+    }
+
+    // V18: validate_userconfig_structure
+    #[test]
+    fn test_v18_valid_structure() {
+        let val = serde_json::json!({
+            "userConfig": {
+                "slackBotToken": {"description": "Bot token for Slack"}
+            }
+        });
+        let ctx = make_ctx(ManifestState::Parsed(val));
+        let mut diag = DiagnosticCollector::new();
+        validate_userconfig_structure(&ctx, &mut diag);
+        assert_eq!(diag.error_count(), 0);
+    }
+
+    #[test]
+    fn test_v18_missing_description() {
+        let val = serde_json::json!({
+            "userConfig": {
+                "slackBotToken": {"title": "Token"}
+            }
+        });
+        let ctx = make_ctx(ManifestState::Parsed(val));
+        let mut diag = DiagnosticCollector::new();
+        validate_userconfig_structure(&ctx, &mut diag);
+        assert_eq!(diag.error_count(), 1);
+        assert!(diag.errors()[0].contains("description"));
+    }
+
+    #[test]
+    fn test_v18_no_userconfig_silent() {
+        let val = serde_json::json!({"name": "p", "version": "1.0.0"});
+        let ctx = make_ctx(ManifestState::Parsed(val));
+        let mut diag = DiagnosticCollector::new();
+        validate_userconfig_structure(&ctx, &mut diag);
+        assert_eq!(diag.error_count(), 0);
+    }
+
+    // V20: validate_userconfig_env_mapping
+    #[test]
+    #[serial_test::serial]
+    fn test_v20_valid_env_mapping() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir_all("scripts").unwrap();
+        std::fs::write(
+            "scripts/run.sh",
+            "#!/bin/bash\necho $CLAUDE_PLUGIN_OPTION_SLACK_BOT_TOKEN\n",
+        )
+        .unwrap();
+
+        let val = serde_json::json!({
+            "userConfig": {
+                "slackBotToken": {"description": "token"}
+            }
+        });
+        let ctx = make_ctx(ManifestState::Parsed(val));
+        let mut diag = DiagnosticCollector::new();
+        validate_userconfig_env_mapping(&ctx, &mut diag);
+        assert_eq!(diag.error_count(), 0);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_v20_missing_env_mapping() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir_all("scripts").unwrap();
+        std::fs::write("scripts/run.sh", "#!/bin/bash\necho hello\n").unwrap();
+
+        let val = serde_json::json!({
+            "userConfig": {
+                "slackBotToken": {"description": "token"}
+            }
+        });
+        let ctx = make_ctx(ManifestState::Parsed(val));
+        let mut diag = DiagnosticCollector::new();
+        validate_userconfig_env_mapping(&ctx, &mut diag);
+        assert_eq!(diag.error_count(), 1);
+        assert!(diag.errors()[0].contains("CLAUDE_PLUGIN_OPTION_SLACK_BOT_TOKEN"));
+    }
+
+    // V23: validate_userconfig_sensitive_type
+    #[test]
+    fn test_v23_valid_sensitive_boolean() {
+        let val = serde_json::json!({
+            "userConfig": {
+                "token": {"sensitive": true}
+            }
+        });
+        let ctx = make_ctx(ManifestState::Parsed(val));
+        let mut diag = DiagnosticCollector::new();
+        validate_userconfig_sensitive_type(&ctx, &mut diag);
+        assert_eq!(diag.error_count(), 0);
+    }
+
+    #[test]
+    fn test_v23_invalid_sensitive_string() {
+        let val = serde_json::json!({
+            "userConfig": {
+                "token": {"sensitive": "yes"}
+            }
+        });
+        let ctx = make_ctx(ManifestState::Parsed(val));
+        let mut diag = DiagnosticCollector::new();
+        validate_userconfig_sensitive_type(&ctx, &mut diag);
+        assert_eq!(diag.error_count(), 1);
+        assert!(diag.errors()[0].contains("boolean"));
+    }
+
+    // V24: validate_userconfig_title
+    #[test]
+    fn test_v24_valid_title() {
+        let val = serde_json::json!({
+            "userConfig": {
+                "token": {"title": "Bot Token"}
+            }
+        });
+        let ctx = make_ctx(ManifestState::Parsed(val));
+        let mut diag = DiagnosticCollector::new();
+        validate_userconfig_title(&ctx, &mut diag);
+        assert_eq!(diag.error_count(), 0);
+    }
+
+    #[test]
+    fn test_v24_missing_title() {
+        let val = serde_json::json!({
+            "userConfig": {
+                "token": {"description": "desc"}
+            }
+        });
+        let ctx = make_ctx(ManifestState::Parsed(val));
+        let mut diag = DiagnosticCollector::new();
+        validate_userconfig_title(&ctx, &mut diag);
+        assert_eq!(diag.error_count(), 1);
+        assert!(diag.errors()[0].contains("title"));
+    }
+
+    // V25: validate_userconfig_type
+    #[test]
+    fn test_v25_valid_type() {
+        let val = serde_json::json!({
+            "userConfig": {
+                "token": {"type": "string"}
+            }
+        });
+        let ctx = make_ctx(ManifestState::Parsed(val));
+        let mut diag = DiagnosticCollector::new();
+        validate_userconfig_type(&ctx, &mut diag);
+        assert_eq!(diag.error_count(), 0);
+    }
+
+    #[test]
+    fn test_v25_missing_type() {
+        let val = serde_json::json!({
+            "userConfig": {
+                "token": {"description": "desc"}
+            }
+        });
+        let ctx = make_ctx(ManifestState::Parsed(val));
+        let mut diag = DiagnosticCollector::new();
+        validate_userconfig_type(&ctx, &mut diag);
+        assert_eq!(diag.error_count(), 1);
+        assert!(diag.errors()[0].contains("type"));
     }
 }
