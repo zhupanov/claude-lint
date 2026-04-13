@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.11] - 2026-04-12
+
+### Added
+
+- 9 remaining skill content lint rules (S035-S043) completing the full rule set
+- S035: compatibility field length check (> 500 chars)
+- S036: referenced .md files > 100 lines without ## headings (plugin-only)
+- S037: body > 300 lines with no file references (plugin-only)
+- S038: time-sensitive date/year patterns in body (plugin-only)
+- S039: metadata map values that aren't strings
+- S040: unrecognized tool names in allowed-tools
+- S041: context: fork with no task instructions
+- S042: disable-model-invocation: true with empty description
+- S043: Windows-style backslash paths in frontmatter
+
 ## [0.2.10] - 2026-04-12
 
 ### Added

@@ -112,6 +112,24 @@ pub enum LintRule {
     NameVague,
     /// S034: skill description under 20 characters
     DescTooShort,
+    /// S035: compatibility field exceeds 500 characters
+    CompatTooLong,
+    /// S036: referenced .md file exceeds 100 lines with no headings
+    RefNoToc,
+    /// S037: SKILL.md body exceeds 300 lines with no file references
+    BodyNoRefs,
+    /// S038: body contains time-sensitive date/year patterns
+    TimeSensitive,
+    /// S039: metadata map value is not a string
+    MetadataNotString,
+    /// S040: allowed-tools lists an unrecognized tool name
+    ToolsUnknown,
+    /// S041: context: fork set but body has no task instructions
+    ForkNoTask,
+    /// S042: disable-model-invocation: true with empty/missing description
+    DmiEmptyDesc,
+    /// S043: Windows-style backslash paths in frontmatter fields
+    FrontmatterBackslash,
 
     // ── Agents (A) ────────────────────────────────────────────────
     /// A001: agents/ directory is missing
@@ -225,6 +243,15 @@ impl LintRule {
             Self::HardcodedSecret => "S032",
             Self::NameVague => "S033",
             Self::DescTooShort => "S034",
+            Self::CompatTooLong => "S035",
+            Self::RefNoToc => "S036",
+            Self::BodyNoRefs => "S037",
+            Self::TimeSensitive => "S038",
+            Self::MetadataNotString => "S039",
+            Self::ToolsUnknown => "S040",
+            Self::ForkNoTask => "S041",
+            Self::DmiEmptyDesc => "S042",
+            Self::FrontmatterBackslash => "S043",
 
             Self::AgentsDirMissing => "A001",
             Self::AgentFrontmatterMalformed => "A002",
@@ -311,6 +338,15 @@ impl LintRule {
             Self::HardcodedSecret => "hardcoded-secret",
             Self::NameVague => "name-vague",
             Self::DescTooShort => "desc-too-short",
+            Self::CompatTooLong => "compat-too-long",
+            Self::RefNoToc => "ref-no-toc",
+            Self::BodyNoRefs => "body-no-refs",
+            Self::TimeSensitive => "time-sensitive",
+            Self::MetadataNotString => "metadata-not-string",
+            Self::ToolsUnknown => "tools-unknown",
+            Self::ForkNoTask => "fork-no-task",
+            Self::DmiEmptyDesc => "dmi-empty-desc",
+            Self::FrontmatterBackslash => "frontmatter-backslash",
 
             Self::AgentsDirMissing => "agents-dir-missing",
             Self::AgentFrontmatterMalformed => "agent-frontmatter-malformed",
@@ -404,6 +440,15 @@ pub const ALL_RULES: &[LintRule] = &[
     LintRule::HardcodedSecret,
     LintRule::NameVague,
     LintRule::DescTooShort,
+    LintRule::CompatTooLong,
+    LintRule::RefNoToc,
+    LintRule::BodyNoRefs,
+    LintRule::TimeSensitive,
+    LintRule::MetadataNotString,
+    LintRule::ToolsUnknown,
+    LintRule::ForkNoTask,
+    LintRule::DmiEmptyDesc,
+    LintRule::FrontmatterBackslash,
     LintRule::AgentsDirMissing,
     LintRule::AgentFrontmatterMalformed,
     LintRule::AgentFieldMissing,
@@ -438,7 +483,7 @@ mod tests {
         // will still compile (match is exhaustive), but this test will catch it.
         assert_eq!(
             ALL_RULES.len(),
-            72,
+            81,
             "ALL_RULES length must match enum variant count"
         );
     }
