@@ -33,14 +33,20 @@ pub fn validate_skills_layout(diag: &mut DiagnosticCollector) {
         }
         let skill_md = path.join("SKILL.md");
         if !skill_md.is_file() {
-            diag.report(LintRule::SkillMdMissing, &format!("skills/{name}/ missing SKILL.md"));
+            diag.report(
+                LintRule::SkillMdMissing,
+                &format!("skills/{name}/ missing SKILL.md"),
+            );
             continue;
         }
         skill_count += 1;
     }
 
     if skill_count == 0 {
-        diag.report(LintRule::NoExportedSkills, "no plugin-exported skills found under skills/");
+        diag.report(
+            LintRule::NoExportedSkills,
+            "no plugin-exported skills found under skills/",
+        );
     }
 }
 

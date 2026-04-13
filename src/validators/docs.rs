@@ -26,7 +26,9 @@ pub fn validate_docs_references(diag: &mut DiagnosticCollector) {
         if seen.insert(doc_path.to_string()) && !Path::new(doc_path).is_file() {
             diag.report(
                 LintRule::DocsRefMissing,
-                &format!("docs reference in CLAUDE.md canonical sources not found on disk: {doc_path}"),
+                &format!(
+                    "docs reference in CLAUDE.md canonical sources not found on disk: {doc_path}"
+                ),
             );
         }
     }

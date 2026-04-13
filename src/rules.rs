@@ -240,7 +240,10 @@ impl LintRule {
     /// Look up a rule by its code (e.g. `"M001"`) or human-readable name
     /// (e.g. `"plugin-json-missing"`).
     pub fn from_code_or_name(s: &str) -> Option<Self> {
-        ALL_RULES.iter().find(|r| r.code() == s || r.name() == s).copied()
+        ALL_RULES
+            .iter()
+            .find(|r| r.code() == s || r.name() == s)
+            .copied()
     }
 }
 
@@ -303,18 +306,18 @@ mod tests {
     fn all_rules_count_matches_enum() {
         // If a variant is added to LintRule but not to ALL_RULES, code()/name()
         // will still compile (match is exhaustive), but this test will catch it.
-        assert_eq!(ALL_RULES.len(), 46, "ALL_RULES length must match enum variant count");
+        assert_eq!(
+            ALL_RULES.len(),
+            46,
+            "ALL_RULES length must match enum variant count"
+        );
     }
 
     #[test]
     fn no_duplicate_codes() {
         let mut seen = HashSet::new();
         for rule in ALL_RULES {
-            assert!(
-                seen.insert(rule.code()),
-                "Duplicate code: {}",
-                rule.code()
-            );
+            assert!(seen.insert(rule.code()), "Duplicate code: {}", rule.code());
         }
     }
 
@@ -322,11 +325,7 @@ mod tests {
     fn no_duplicate_names() {
         let mut seen = HashSet::new();
         for rule in ALL_RULES {
-            assert!(
-                seen.insert(rule.name()),
-                "Duplicate name: {}",
-                rule.name()
-            );
+            assert!(seen.insert(rule.name()), "Duplicate name: {}", rule.name());
         }
     }
 

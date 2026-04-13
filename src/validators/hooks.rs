@@ -106,7 +106,10 @@ pub fn validate_hooks_json(ctx: &LintContext, diag: &mut DiagnosticCollector) {
     };
 
     if val.get("hooks").is_none() {
-        diag.report(LintRule::HooksKeyMissing, &format!("{f} missing top-level 'hooks' key"));
+        diag.report(
+            LintRule::HooksKeyMissing,
+            &format!("{f} missing top-level 'hooks' key"),
+        );
     }
 
     validate_hook_command_paths(

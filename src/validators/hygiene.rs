@@ -91,7 +91,9 @@ pub fn validate_script_references(diag: &mut DiagnosticCollector) {
                     if !Path::new(&rel).is_file() {
                         diag.report(
                             LintRule::ScriptRefMissing,
-                            &format!("script reference missing on disk: {reference} (expected {rel})"),
+                            &format!(
+                                "script reference missing on disk: {reference} (expected {rel})"
+                            ),
                         );
                     }
                 }
@@ -104,7 +106,9 @@ pub fn validate_script_references(diag: &mut DiagnosticCollector) {
                     if !Path::new(&rel).is_file() {
                         diag.report(
                             LintRule::ScriptRefMissing,
-                            &format!("script reference missing on disk: {reference} (expected {rel})"),
+                            &format!(
+                                "script reference missing on disk: {reference} (expected {rel})"
+                            ),
                         );
                     }
                 }
@@ -117,7 +121,9 @@ pub fn validate_script_references(diag: &mut DiagnosticCollector) {
                     if !Path::new(&rel).is_file() {
                         diag.report(
                             LintRule::ScriptRefMissing,
-                            &format!("script reference missing on disk: {reference} (expected {rel})"),
+                            &format!(
+                                "script reference missing on disk: {reference} (expected {rel})"
+                            ),
                         );
                     }
                 }
@@ -442,7 +448,9 @@ pub fn validate_dead_scripts(diag: &mut DiagnosticCollector) {
             if !references.contains(&key) {
                 diag.report(
                     LintRule::DeadScript,
-                    &format!("dead script (no structured invocation reference found): scripts/{name}"),
+                    &format!(
+                        "dead script (no structured invocation reference found): scripts/{name}"
+                    ),
                 );
             }
         }
@@ -452,7 +460,10 @@ pub fn validate_dead_scripts(diag: &mut DiagnosticCollector) {
 /// V14: SECURITY.md presence
 pub fn validate_security_md(diag: &mut DiagnosticCollector) {
     if !Path::new("SECURITY.md").is_file() {
-        diag.report(LintRule::SecurityMdMissing, "SECURITY.md is missing from repo root");
+        diag.report(
+            LintRule::SecurityMdMissing,
+            "SECURITY.md is missing from repo root",
+        );
     }
 }
 

@@ -42,8 +42,8 @@ impl LintConfig {
         let content = std::fs::read_to_string(&path)
             .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
 
-        let raw: RawConfig = toml::from_str(&content)
-            .map_err(|e| format!("{}: {e}", path.display()))?;
+        let raw: RawConfig =
+            toml::from_str(&content).map_err(|e| format!("{}: {e}", path.display()))?;
 
         let section = raw.lint.unwrap_or_default();
 
@@ -141,7 +141,10 @@ mod tests {
         )
         .unwrap();
         let err = LintConfig::load(tmp.path().to_str().unwrap()).unwrap_err();
-        assert!(err.contains("unknown rule"), "Expected unknown rule error, got: {err}");
+        assert!(
+            err.contains("unknown rule"),
+            "Expected unknown rule error, got: {err}"
+        );
         assert!(err.contains("X999"));
     }
 
@@ -149,11 +152,7 @@ mod tests {
     #[serial_test::serial]
     fn malformed_toml_returns_error() {
         let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(
-            tmp.path().join("claude-lint.toml"),
-            "not valid toml {{{\n",
-        )
-        .unwrap();
+        std::fs::write(tmp.path().join("claude-lint.toml"), "not valid toml {{{\n").unwrap();
         let err = LintConfig::load(tmp.path().to_str().unwrap()).unwrap_err();
         assert!(!err.is_empty());
     }
@@ -162,11 +161,7 @@ mod tests {
     #[serial_test::serial]
     fn empty_lint_section_is_valid() {
         let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(
-            tmp.path().join("claude-lint.toml"),
-            "[lint]\n",
-        )
-        .unwrap();
+        std::fs::write(tmp.path().join("claude-lint.toml"), "[lint]\n").unwrap();
         let config = LintConfig::load(tmp.path().to_str().unwrap()).unwrap();
         assert!(config.ignore.is_empty());
         assert!(config.warn.is_empty());
@@ -176,11 +171,7 @@ mod tests {
     #[serial_test::serial]
     fn no_lint_section_is_valid() {
         let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(
-            tmp.path().join("claude-lint.toml"),
-            "# empty config\n",
-        )
-        .unwrap();
+        std::fs::write(tmp.path().join("claude-lint.toml"), "# empty config\n").unwrap();
         let config = LintConfig::load(tmp.path().to_str().unwrap()).unwrap();
         assert!(config.ignore.is_empty());
         assert!(config.warn.is_empty());
@@ -196,7 +187,10 @@ mod tests {
         )
         .unwrap();
         let err = LintConfig::load(tmp.path().to_str().unwrap()).unwrap_err();
-        assert!(err.contains("unknown field"), "Expected unknown field error, got: {err}");
+        assert!(
+            err.contains("unknown field"),
+            "Expected unknown field error, got: {err}"
+        );
     }
 
     #[test]
@@ -209,6 +203,9 @@ mod tests {
         )
         .unwrap();
         let err = LintConfig::load(tmp.path().to_str().unwrap()).unwrap_err();
-        assert!(err.contains("unknown field"), "Expected unknown field error, got: {err}");
+        assert!(
+            err.contains("unknown field"),
+            "Expected unknown field error, got: {err}"
+        );
     }
 }

@@ -22,10 +22,16 @@ pub fn validate_plugin_json(ctx: &LintContext, diag: &mut DiagnosticCollector) {
     let version = val.get("version").and_then(|v| v.as_str()).unwrap_or("");
 
     if name.is_empty() {
-        diag.report(LintRule::PluginFieldMissing, &format!("{f} missing required field: name"));
+        diag.report(
+            LintRule::PluginFieldMissing,
+            &format!("{f} missing required field: name"),
+        );
     }
     if version.is_empty() {
-        diag.report(LintRule::PluginFieldMissing, &format!("{f} missing required field: version"));
+        diag.report(
+            LintRule::PluginFieldMissing,
+            &format!("{f} missing required field: version"),
+        );
     } else {
         let semver_re = Regex::new(r"^[0-9]+\.[0-9]+\.[0-9]+$").unwrap();
         if !semver_re.is_match(version) {
@@ -60,7 +66,10 @@ pub fn validate_marketplace_json(ctx: &LintContext, diag: &mut DiagnosticCollect
         .unwrap_or("");
 
     if mp_name.is_empty() {
-        diag.report(LintRule::MarketplaceFieldMissing, &format!("{f} missing required field: name"));
+        diag.report(
+            LintRule::MarketplaceFieldMissing,
+            &format!("{f} missing required field: name"),
+        );
     }
     if mp_owner.is_empty() {
         diag.report(
@@ -72,10 +81,16 @@ pub fn validate_marketplace_json(ctx: &LintContext, diag: &mut DiagnosticCollect
     let plugins = val.get("plugins").and_then(|v| v.as_array());
     match plugins {
         None => {
-            diag.report(LintRule::MarketplacePluginsEmpty, &format!("{f} has empty plugins array"));
+            diag.report(
+                LintRule::MarketplacePluginsEmpty,
+                &format!("{f} has empty plugins array"),
+            );
         }
         Some(arr) if arr.is_empty() => {
-            diag.report(LintRule::MarketplacePluginsEmpty, &format!("{f} has empty plugins array"));
+            diag.report(
+                LintRule::MarketplacePluginsEmpty,
+                &format!("{f} has empty plugins array"),
+            );
         }
         Some(arr) => {
             for (i, plugin) in arr.iter().enumerate() {

@@ -30,7 +30,9 @@ pub fn validate_email_format(ctx: &LintContext, diag: &mut DiagnosticCollector) 
         if !email.is_empty() && !email_re.is_match(email) {
             diag.report(
                 LintRule::InvalidEmailFormat,
-                &format!(".claude-plugin/plugin.json author.email is not a valid email format: {email}"),
+                &format!(
+                    ".claude-plugin/plugin.json author.email is not a valid email format: {email}"
+                ),
             );
         }
     }

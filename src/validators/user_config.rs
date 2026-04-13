@@ -19,7 +19,10 @@ fn get_user_config<'a>(
     match uc {
         serde_json::Value::Object(map) => Some(map),
         _ => {
-            diag.report(LintRule::UserconfigNotObject, &format!("{f} userConfig must be an object"));
+            diag.report(
+                LintRule::UserconfigNotObject,
+                &format!("{f} userConfig must be an object"),
+            );
             None
         }
     }
@@ -85,7 +88,9 @@ pub fn validate_userconfig_env_mapping(ctx: &LintContext, diag: &mut DiagnosticC
         if !scripts_content.contains(&env_var) {
             diag.report(
                 LintRule::UserconfigEnvMissing,
-                &format!("userConfig key '{key}' has no corresponding {env_var} reference in scripts/"),
+                &format!(
+                    "userConfig key '{key}' has no corresponding {env_var} reference in scripts/"
+                ),
             );
         }
     }
@@ -157,7 +162,9 @@ pub fn validate_userconfig_title(ctx: &LintContext, diag: &mut DiagnosticCollect
             _ => {
                 diag.report(
                     LintRule::UserconfigTitleMissing,
-                    &format!("{f} userConfig.{key} missing or invalid title (must be a non-empty string)"),
+                    &format!(
+                        "{f} userConfig.{key} missing or invalid title (must be a non-empty string)"
+                    ),
                 );
             }
         }
@@ -184,7 +191,9 @@ pub fn validate_userconfig_type(ctx: &LintContext, diag: &mut DiagnosticCollecto
             _ => {
                 diag.report(
                     LintRule::UserconfigTypeMissing,
-                    &format!("{f} userConfig.{key} missing or invalid type (must be a non-empty string)"),
+                    &format!(
+                        "{f} userConfig.{key} missing or invalid type (must be a non-empty string)"
+                    ),
                 );
             }
         }
