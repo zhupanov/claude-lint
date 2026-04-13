@@ -117,6 +117,10 @@ jobs:
             VERSION="${{ needs.auto-tag.outputs.version }}"
           else
             VERSION=$(jq -r '.version' package.json)
+            if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+              echo "::error::Could not read version from package.json"
+              exit 1
+            fi
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
@@ -157,12 +161,17 @@ jobs:
         id: version
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            VERSION="${GITHUB_REF_NAME#v}"
           elif [ -n "${{ needs.auto-tag.outputs.version }}" ]; then
-            echo "version=${{ needs.auto-tag.outputs.version }}" >> "$GITHUB_OUTPUT"
+            VERSION="${{ needs.auto-tag.outputs.version }}"
           else
-            echo "version=$(jq -r '.version' package.json)" >> "$GITHUB_OUTPUT"
+            VERSION=$(jq -r '.version' package.json)
+            if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+              echo "::error::Could not read version from package.json"
+              exit 1
+            fi
           fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Generate checksums
         run: |
@@ -180,9 +189,13 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           cd artifacts
-          gh release create "v${VERSION}" \
-            --repo "${{ github.repository }}" \
-            --title "v${VERSION}" \
-            --generate-notes \
-            claude-lint-*.tar.gz \
-            "claude-lint-v${VERSION}-checksums.txt"
+          if gh release view "v${VERSION}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "Release v${VERSION} already exists, skipping creation."
+          else
+            gh release create "v${VERSION}" \
+              --repo "${{ github.repository }}" \
+              --title "v${VERSION}" \
+              --generate-notes \
+              claude-lint-*.tar.gz \
+              "claude-lint-v${VERSION}-checksums.txt"
+          fi
