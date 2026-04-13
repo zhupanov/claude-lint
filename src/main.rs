@@ -82,10 +82,11 @@ fn main() {
         }
     };
 
+    let exclude = lint_config.build_exclude_set();
     let ctx = LintContext::new(repo_root.clone(), mode);
     let mut diag = DiagnosticCollector::with_config(lint_config);
 
-    validators::run_all(&ctx, &mut diag);
+    validators::run_all(&ctx, &mut diag, &exclude);
 
     let errors = diag.error_count();
     let warnings = diag.warning_count();

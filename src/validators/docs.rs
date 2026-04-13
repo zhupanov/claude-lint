@@ -1,3 +1,4 @@
+use crate::config::ExcludeSet;
 use crate::diagnostic::DiagnosticCollector;
 use crate::rules::LintRule;
 use regex::Regex;
@@ -5,7 +6,10 @@ use std::fs;
 use std::path::Path;
 
 /// V22: Docs file references from CLAUDE.md.
-pub fn validate_docs_references(diag: &mut DiagnosticCollector) {
+pub fn validate_docs_references(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
+    if exclude.is_excluded("CLAUDE.md") {
+        return;
+    }
     let claude_md = Path::new("CLAUDE.md");
     if !claude_md.is_file() {
         return;
@@ -35,7 +39,10 @@ pub fn validate_docs_references(diag: &mut DiagnosticCollector) {
 }
 
 /// D002: CLAUDE.md size limit (500 lines).
-pub fn validate_claudemd_size(diag: &mut DiagnosticCollector) {
+pub fn validate_claudemd_size(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
+    if exclude.is_excluded("CLAUDE.md") {
+        return;
+    }
     let claude_md = Path::new("CLAUDE.md");
     if !claude_md.is_file() {
         return;
@@ -59,7 +66,10 @@ pub fn validate_claudemd_size(diag: &mut DiagnosticCollector) {
 }
 
 /// D003: TODO/FIXME/HACK/XXX markers in CLAUDE.md.
-pub fn validate_claudemd_todos(diag: &mut DiagnosticCollector) {
+pub fn validate_claudemd_todos(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
+    if exclude.is_excluded("CLAUDE.md") {
+        return;
+    }
     let claude_md = Path::new("CLAUDE.md");
     if !claude_md.is_file() {
         return;
@@ -163,7 +173,7 @@ Should not be here\n\
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_docs_references(&mut diag);
+        validate_docs_references(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -181,7 +191,7 @@ Should not be here\n\
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_docs_references(&mut diag);
+        validate_docs_references(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("not found on disk"));
     }
@@ -194,7 +204,7 @@ Should not be here\n\
         std::env::set_current_dir(tmp.path()).unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_docs_references(&mut diag);
+        validate_docs_references(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -208,7 +218,7 @@ Should not be here\n\
         let content = "line\n".repeat(501);
         std::fs::write("CLAUDE.md", &content).unwrap();
         let mut diag = DiagnosticCollector::new();
-        validate_claudemd_size(&mut diag);
+        validate_claudemd_size(&mut diag, &crate::config::ExcludeSet::default());
         assert!(diag.errors().iter().any(|e| e.contains("exceeds 500")));
     }
 
@@ -221,7 +231,7 @@ Should not be here\n\
         let content = "line\n".repeat(500);
         std::fs::write("CLAUDE.md", &content).unwrap();
         let mut diag = DiagnosticCollector::new();
-        validate_claudemd_size(&mut diag);
+        validate_claudemd_size(&mut diag, &crate::config::ExcludeSet::default());
         assert!(!diag.errors().iter().any(|e| e.contains("exceeds 500")));
     }
 
@@ -234,7 +244,7 @@ Should not be here\n\
         std::env::set_current_dir(tmp.path()).unwrap();
         std::fs::write("CLAUDE.md", "# Docs\nTODO: finish this section\n").unwrap();
         let mut diag = DiagnosticCollector::new();
-        validate_claudemd_todos(&mut diag);
+        validate_claudemd_todos(&mut diag, &crate::config::ExcludeSet::default());
         assert!(diag.errors().iter().any(|e| e.contains("TODO")));
     }
 
@@ -250,7 +260,7 @@ Should not be here\n\
         )
         .unwrap();
         let mut diag = DiagnosticCollector::new();
-        validate_claudemd_todos(&mut diag);
+        validate_claudemd_todos(&mut diag, &crate::config::ExcludeSet::default());
         assert!(!diag.errors().iter().any(|e| e.contains("TODO")));
     }
 
@@ -261,7 +271,7 @@ Should not be here\n\
         let _guard = crate::test_helpers::CwdGuard::new();
         std::env::set_current_dir(tmp.path()).unwrap();
         let mut diag = DiagnosticCollector::new();
-        validate_claudemd_todos(&mut diag);
+        validate_claudemd_todos(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 }

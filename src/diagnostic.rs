@@ -144,6 +144,7 @@ mod tests {
         let config = LintConfig {
             ignore: HashSet::from([LintRule::PluginJsonMissing]),
             warn: HashSet::new(),
+            exclude: vec![],
         };
         let mut diag = DiagnosticCollector::with_config(config);
         diag.report(LintRule::PluginJsonMissing, "test message");
@@ -157,6 +158,7 @@ mod tests {
         let config = LintConfig {
             ignore: HashSet::new(),
             warn: HashSet::from([LintRule::SecurityMdMissing]),
+            exclude: vec![],
         };
         let mut diag = DiagnosticCollector::with_config(config);
         diag.report(LintRule::SecurityMdMissing, "SECURITY.md missing");
@@ -179,6 +181,7 @@ mod tests {
         let config = LintConfig {
             ignore: HashSet::from([LintRule::PluginJsonMissing]),
             warn: HashSet::from([LintRule::SecurityMdMissing]),
+            exclude: vec![],
         };
         let mut diag = DiagnosticCollector::with_config(config);
         diag.report(LintRule::PluginJsonMissing, "suppressed");

@@ -1,3 +1,4 @@
+use crate::config::ExcludeSet;
 use crate::context::LintMode;
 use crate::diagnostic::DiagnosticCollector;
 use crate::rules::LintRule;
@@ -16,7 +17,7 @@ pub const BASIC_SCRIPT_DIRS: &[&str] = &[".claude/skills/*/scripts"];
 
 /// V8: ${CLAUDE_PLUGIN_ROOT} hygiene — public skills/*/SKILL.md must not use
 /// $PWD/, ${PWD}/, or hardcoded paths (/Users/, /home/, /opt/).
-pub fn validate_pwd_hygiene(diag: &mut DiagnosticCollector) {
+pub fn validate_pwd_hygiene(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let skills_dir = Path::new("skills");
     if !skills_dir.is_dir() {
         return;
@@ -42,6 +43,11 @@ pub fn validate_pwd_hygiene(diag: &mut DiagnosticCollector) {
             continue;
         }
 
+        let skill_path = format!("skills/{name}/SKILL.md");
+        if exclude.is_excluded(&skill_path) {
+            continue;
+        }
+
         let skill_md = path.join("SKILL.md");
         if !skill_md.is_file() {
             continue;
@@ -64,7 +70,7 @@ pub fn validate_pwd_hygiene(diag: &mut DiagnosticCollector) {
 }
 
 /// V9: Script reference integrity.
-pub fn validate_script_references(diag: &mut DiagnosticCollector) {
+pub fn validate_script_references(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let re_pub = Regex::new(
         r"\$\{CLAUDE_PLUGIN_ROOT\}/(scripts|skills|\.claude/skills)/[a-zA-Z0-9._/-]+\.sh",
     )
@@ -85,6 +91,10 @@ pub fn validate_script_references(diag: &mut DiagnosticCollector) {
         for entry in WalkDir::new(base).into_iter().flatten() {
             let path = entry.path();
             if !path.is_file() {
+                continue;
+            }
+            let display_path = path.display().to_string();
+            if exclude.is_excluded(&display_path) {
                 continue;
             }
             let content = match fs::read_to_string(path) {
@@ -141,7 +151,7 @@ pub fn validate_script_references(diag: &mut DiagnosticCollector) {
 }
 
 /// V9-adapted: Script reference integrity for private .claude/skills/ only.
-pub fn validate_private_script_references(diag: &mut DiagnosticCollector) {
+pub fn validate_private_script_references(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let re_priv = Regex::new(r"\$PWD/\.claude/skills/[a-zA-Z0-9._/-]+\.sh").unwrap();
     let re_placeholder = Regex::new(
         r"\$\{CLAUDE_PLUGIN_ROOT_PLACEHOLDER:-\$PWD\}/\.claude/skills/[a-zA-Z0-9._/-]+\.sh",
@@ -157,6 +167,10 @@ pub fn validate_private_script_references(diag: &mut DiagnosticCollector) {
     for entry in WalkDir::new(base).into_iter().flatten() {
         let path = entry.path();
         if !path.is_file() {
+            continue;
+        }
+        let display_path = path.display().to_string();
+        if exclude.is_excluded(&display_path) {
             continue;
         }
         let content = match fs::read_to_string(path) {
@@ -194,16 +208,17 @@ pub fn validate_private_script_references(diag: &mut DiagnosticCollector) {
 
 /// V10: Executability — every .sh file under scripts/, skills/*/scripts/,
 /// and .claude/skills/*/scripts/ must be chmod +x.
-pub fn validate_executability(diag: &mut DiagnosticCollector) {
+pub fn validate_executability(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     check_executability_in_dirs(
         &["scripts", "skills/*/scripts", ".claude/skills/*/scripts"],
         diag,
+        exclude,
     );
 }
 
 /// V10-adapted: Executability for private .claude/skills/*/scripts/*.sh only.
-pub fn validate_private_executability(diag: &mut DiagnosticCollector) {
-    check_executability_in_dirs(&[".claude/skills/*/scripts"], diag);
+pub fn validate_private_executability(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
+    check_executability_in_dirs(&[".claude/skills/*/scripts"], diag, exclude);
 }
 
 /// Expand glob-like directory patterns into concrete directory paths.
@@ -239,9 +254,13 @@ pub fn expand_script_dirs(patterns: &[&str]) -> Vec<PathBuf> {
     dirs
 }
 
-fn check_executability_in_dirs(patterns: &[&str], diag: &mut DiagnosticCollector) {
+fn check_executability_in_dirs(
+    patterns: &[&str],
+    diag: &mut DiagnosticCollector,
+    exclude: &ExcludeSet,
+) {
     for dir in expand_script_dirs(patterns) {
-        check_sh_executability(&dir, diag);
+        check_sh_executability(&dir, diag, exclude);
     }
 }
 
@@ -273,7 +292,7 @@ pub fn collect_script_paths(mode: LintMode) -> Vec<String> {
     paths.into_iter().collect()
 }
 
-fn check_sh_executability(dir: &Path, diag: &mut DiagnosticCollector) {
+fn check_sh_executability(dir: &Path, diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let entries = match fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
@@ -288,6 +307,11 @@ fn check_sh_executability(dir: &Path, diag: &mut DiagnosticCollector) {
             Some(n) if n.ends_with(".sh") => n.to_string(),
             _ => continue,
         };
+
+        let display_path = path.display().to_string();
+        if exclude.is_excluded(&display_path) {
+            continue;
+        }
 
         #[cfg(unix)]
         {
@@ -306,7 +330,7 @@ fn check_sh_executability(dir: &Path, diag: &mut DiagnosticCollector) {
 }
 
 /// V11: Dead-script detection
-pub fn validate_dead_scripts(diag: &mut DiagnosticCollector) {
+pub fn validate_dead_scripts(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let scripts_dir = Path::new("scripts");
     if !scripts_dir.is_dir() {
         return;
@@ -491,6 +515,9 @@ pub fn validate_dead_scripts(diag: &mut DiagnosticCollector) {
                 _ => continue,
             };
             let key = format!("scripts/{name}");
+            if exclude.is_excluded(&key) {
+                continue;
+            }
             if !references.contains(&key) {
                 diag.report(
                     LintRule::DeadScript,
@@ -515,7 +542,7 @@ pub fn validate_security_md(diag: &mut DiagnosticCollector) {
 
 /// G006: TODO/FIXME/HACK/XXX markers in published skill content.
 /// Scans skills/*/SKILL.md body text outside code fences.
-pub fn validate_todo_in_skills(diag: &mut DiagnosticCollector) {
+pub fn validate_todo_in_skills(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let skills_dir = Path::new("skills");
     if !skills_dir.is_dir() {
         return;
@@ -538,6 +565,11 @@ pub fn validate_todo_in_skills(diag: &mut DiagnosticCollector) {
             None => continue,
         };
         if dir_name == "shared" {
+            continue;
+        }
+
+        let skill_path = format!("skills/{dir_name}/SKILL.md");
+        if exclude.is_excluded(&skill_path) {
             continue;
         }
 
@@ -579,7 +611,7 @@ pub fn validate_todo_in_skills(diag: &mut DiagnosticCollector) {
 
 /// G007: TODO/FIXME/HACK/XXX markers in agent .md files.
 /// Scans agents/*.md body text outside code fences.
-pub fn validate_todo_in_agents(diag: &mut DiagnosticCollector) {
+pub fn validate_todo_in_agents(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let agents_dir = Path::new("agents");
     if !agents_dir.is_dir() {
         return;
@@ -601,6 +633,11 @@ pub fn validate_todo_in_agents(diag: &mut DiagnosticCollector) {
             Some(n) if n.ends_with(".md") => n.to_string(),
             _ => continue,
         };
+
+        let agent_path = format!("agents/{name}");
+        if exclude.is_excluded(&agent_path) {
+            continue;
+        }
 
         let content = match fs::read_to_string(&path) {
             Ok(c) => c,
@@ -708,7 +745,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_pwd_hygiene(&mut diag);
+        validate_pwd_hygiene(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -727,7 +764,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_pwd_hygiene(&mut diag);
+        validate_pwd_hygiene(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("$PWD"));
     }
@@ -747,7 +784,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_pwd_hygiene(&mut diag);
+        validate_pwd_hygiene(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("hardcoded path"));
     }
@@ -768,7 +805,7 @@ mod tests {
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_executability(&mut diag);
+        validate_executability(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -787,7 +824,7 @@ mod tests {
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o644)).unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_executability(&mut diag);
+        validate_executability(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("not executable"));
     }
@@ -807,7 +844,7 @@ mod tests {
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_private_executability(&mut diag);
+        validate_private_executability(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -826,7 +863,7 @@ mod tests {
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o644)).unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_private_executability(&mut diag);
+        validate_private_executability(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("not executable"));
     }
@@ -877,7 +914,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_script_references(&mut diag);
+        validate_script_references(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -896,7 +933,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_script_references(&mut diag);
+        validate_script_references(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("missing on disk"));
     }
@@ -917,7 +954,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_private_script_references(&mut diag);
+        validate_private_script_references(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -936,7 +973,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_private_script_references(&mut diag);
+        validate_private_script_references(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("missing on disk"));
     }
@@ -959,7 +996,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_dead_scripts(&mut diag);
+        validate_dead_scripts(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -974,7 +1011,7 @@ mod tests {
         std::fs::write("scripts/orphan.sh", "#!/bin/bash\n").unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_dead_scripts(&mut diag);
+        validate_dead_scripts(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("dead script"));
     }
@@ -1099,7 +1136,7 @@ mod tests {
         )
         .unwrap();
         let mut diag = DiagnosticCollector::new();
-        validate_todo_in_skills(&mut diag);
+        validate_todo_in_skills(&mut diag, &crate::config::ExcludeSet::default());
         assert!(diag.errors().iter().any(|e| e.contains("TODO")));
     }
 
@@ -1116,7 +1153,7 @@ mod tests {
         )
         .unwrap();
         let mut diag = DiagnosticCollector::new();
-        validate_todo_in_skills(&mut diag);
+        validate_todo_in_skills(&mut diag, &crate::config::ExcludeSet::default());
         assert!(!diag.errors().iter().any(|e| e.contains("TODO")));
     }
 
@@ -1134,7 +1171,7 @@ mod tests {
         )
         .unwrap();
         let mut diag = DiagnosticCollector::new();
-        validate_todo_in_agents(&mut diag);
+        validate_todo_in_agents(&mut diag, &crate::config::ExcludeSet::default());
         assert!(diag.errors().iter().any(|e| e.contains("FIXME")));
     }
 
@@ -1151,7 +1188,7 @@ mod tests {
         )
         .unwrap();
         let mut diag = DiagnosticCollector::new();
-        validate_todo_in_agents(&mut diag);
+        validate_todo_in_agents(&mut diag, &crate::config::ExcludeSet::default());
         assert!(!diag.errors().iter().any(|e| e.contains("FIXME")));
     }
 }

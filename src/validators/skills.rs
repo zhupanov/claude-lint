@@ -1,3 +1,4 @@
+use crate::config::ExcludeSet;
 use crate::diagnostic::DiagnosticCollector;
 use crate::frontmatter;
 use crate::rules::LintRule;
@@ -19,8 +20,8 @@ pub struct SkillInfo {
 }
 
 /// Walk a skills directory and collect SkillInfo for each valid skill.
-/// Skips `shared/` subdirectory. Returns empty vec if dir doesn't exist.
-pub fn collect_skills(base_dir: &str) -> Vec<SkillInfo> {
+/// Skips `shared/` subdirectory and excluded paths. Returns empty vec if dir doesn't exist.
+pub fn collect_skills(base_dir: &str, exclude: &ExcludeSet) -> Vec<SkillInfo> {
     let dir = Path::new(base_dir);
     if !dir.is_dir() {
         return Vec::new();
@@ -63,6 +64,10 @@ pub fn collect_skills(base_dir: &str) -> Vec<SkillInfo> {
         let body = frontmatter::extract_body(&content).to_string();
         let skill_path = format!("{base_dir}/{dir_name}/SKILL.md");
 
+        if exclude.is_excluded(&skill_path) {
+            continue;
+        }
+
         skills.push(SkillInfo {
             path: skill_path,
             dir_name,
@@ -74,7 +79,7 @@ pub fn collect_skills(base_dir: &str) -> Vec<SkillInfo> {
 }
 
 /// V5: Validate skills/* layout — every skills/*/ (except shared/) must contain SKILL.md.
-pub fn validate_skills_layout(diag: &mut DiagnosticCollector) {
+pub fn validate_skills_layout(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let skills_dir = Path::new("skills");
     if !skills_dir.is_dir() {
         diag.report(LintRule::SkillsDirMissing, "skills/ directory is missing");
@@ -99,6 +104,10 @@ pub fn validate_skills_layout(diag: &mut DiagnosticCollector) {
         if name == "shared" {
             continue;
         }
+        let skill_path = format!("skills/{name}/SKILL.md");
+        if exclude.is_excluded(&skill_path) {
+            continue;
+        }
         let skill_md = path.join("SKILL.md");
         if !skill_md.is_file() {
             diag.report(
@@ -119,19 +128,20 @@ pub fn validate_skills_layout(diag: &mut DiagnosticCollector) {
 }
 
 /// V6: Validate SKILL.md frontmatter for public skills (skills/*/SKILL.md).
-pub fn validate_skill_frontmatter(diag: &mut DiagnosticCollector) {
-    validate_skill_frontmatter_in_dir("skills", true, diag);
+pub fn validate_skill_frontmatter(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
+    validate_skill_frontmatter_in_dir("skills", true, diag, exclude);
 }
 
 /// V6-adapted: Validate SKILL.md frontmatter for private skills (.claude/skills/*/SKILL.md).
-pub fn validate_private_skill_frontmatter(diag: &mut DiagnosticCollector) {
-    validate_skill_frontmatter_in_dir(".claude/skills", false, diag);
+pub fn validate_private_skill_frontmatter(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
+    validate_skill_frontmatter_in_dir(".claude/skills", false, diag, exclude);
 }
 
 fn validate_skill_frontmatter_in_dir(
     base_dir: &str,
     check_name_match: bool,
     diag: &mut DiagnosticCollector,
+    exclude: &ExcludeSet,
 ) {
     let dir = Path::new(base_dir);
     if !dir.is_dir() {
@@ -162,6 +172,9 @@ fn validate_skill_frontmatter_in_dir(
         }
 
         let skill_path = format!("{base_dir}/{dir_name}/SKILL.md");
+        if exclude.is_excluded(&skill_path) {
+            continue;
+        }
         let content = match fs::read_to_string(&skill_md) {
             Ok(c) => c,
             Err(_) => continue,
@@ -229,7 +242,7 @@ fn validate_skill_frontmatter_in_dir(
 /// V15: Validate shared markdown reference integrity.
 /// Every `${CLAUDE_PLUGIN_ROOT}/skills/shared/*.md` path referenced from
 /// `skills/*/SKILL.md` must exist on disk.
-pub fn validate_shared_md_references(diag: &mut DiagnosticCollector) {
+pub fn validate_shared_md_references(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let skills_dir = Path::new("skills");
     if !skills_dir.is_dir() {
         return;
@@ -260,12 +273,15 @@ pub fn validate_shared_md_references(diag: &mut DiagnosticCollector) {
             continue;
         }
 
+        let skill_path = format!("skills/{dir_name}/SKILL.md");
+        if exclude.is_excluded(&skill_path) {
+            continue;
+        }
+
         let content = match fs::read_to_string(&skill_md) {
             Ok(c) => c,
             Err(_) => continue,
         };
-
-        let skill_path = format!("skills/{dir_name}/SKILL.md");
 
         for cap in re.find_iter(&content) {
             let reference = cap.as_str();
@@ -299,7 +315,7 @@ mod tests {
         std::fs::write("skills/my-skill/SKILL.md", "---\nname: my-skill\n---\n").unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_skills_layout(&mut diag);
+        validate_skills_layout(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -311,7 +327,7 @@ mod tests {
         std::env::set_current_dir(tmp.path()).unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_skills_layout(&mut diag);
+        validate_skills_layout(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("skills/ directory is missing"));
     }
@@ -327,7 +343,7 @@ mod tests {
         // No SKILL.md file
 
         let mut diag = DiagnosticCollector::new();
-        validate_skills_layout(&mut diag);
+        validate_skills_layout(&mut diag, &crate::config::ExcludeSet::default());
         // Missing SKILL.md + no skills found = 2 errors
         assert!(diag.error_count() >= 1);
         assert!(diag.errors().iter().any(|e| e.contains("missing SKILL.md")));
@@ -345,7 +361,7 @@ mod tests {
         std::fs::write("skills/my-skill/SKILL.md", "---\nname: my-skill\n---\n").unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_skills_layout(&mut diag);
+        validate_skills_layout(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -365,7 +381,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_skill_frontmatter(&mut diag);
+        validate_skill_frontmatter(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -384,7 +400,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_skill_frontmatter(&mut diag);
+        validate_skill_frontmatter(&mut diag, &crate::config::ExcludeSet::default());
         assert!(diag.error_count() >= 1);
         assert!(diag.errors().iter().any(|e| e.contains("name")));
     }
@@ -404,7 +420,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_skill_frontmatter(&mut diag);
+        validate_skill_frontmatter(&mut diag, &crate::config::ExcludeSet::default());
         assert!(diag.error_count() >= 1);
         assert!(diag.errors().iter().any(|e| e.contains("does not match")));
     }
@@ -420,7 +436,7 @@ mod tests {
         std::fs::write("skills/my-skill/SKILL.md", "no frontmatter\n").unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_skill_frontmatter(&mut diag);
+        validate_skill_frontmatter(&mut diag, &crate::config::ExcludeSet::default());
         assert!(diag.error_count() >= 1);
         assert!(diag.errors().iter().any(|e| e.contains("malformed")));
     }
@@ -441,7 +457,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_private_skill_frontmatter(&mut diag);
+        validate_private_skill_frontmatter(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -460,7 +476,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_private_skill_frontmatter(&mut diag);
+        validate_private_skill_frontmatter(&mut diag, &crate::config::ExcludeSet::default());
         assert!(diag.error_count() >= 1);
         assert!(diag.errors().iter().any(|e| e.contains("description")));
     }
@@ -473,7 +489,7 @@ mod tests {
         std::env::set_current_dir(tmp.path()).unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_private_skill_frontmatter(&mut diag);
+        validate_private_skill_frontmatter(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -495,7 +511,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_shared_md_references(&mut diag);
+        validate_shared_md_references(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -514,7 +530,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_shared_md_references(&mut diag);
+        validate_shared_md_references(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("missing on disk"));
     }

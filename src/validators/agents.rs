@@ -1,3 +1,4 @@
+use crate::config::ExcludeSet;
 use crate::diagnostic::DiagnosticCollector;
 use crate::frontmatter;
 use crate::rules::LintRule;
@@ -5,7 +6,7 @@ use std::fs;
 use std::path::Path;
 
 /// V7: Validate agents/*.md frontmatter.
-pub fn validate_agents(diag: &mut DiagnosticCollector) {
+pub fn validate_agents(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let agents_dir = Path::new("agents");
     if !agents_dir.is_dir() {
         diag.report(LintRule::AgentsDirMissing, "agents/ directory is missing");
@@ -29,8 +30,12 @@ pub fn validate_agents(diag: &mut DiagnosticCollector) {
             _ => continue,
         };
 
-        found += 1;
         let agent_path = format!("agents/{name}");
+        if exclude.is_excluded(&agent_path) {
+            continue;
+        }
+
+        found += 1;
         let content = match fs::read_to_string(&path) {
             Ok(c) => c,
             Err(_) => continue,
@@ -113,7 +118,7 @@ pub fn validate_agents(diag: &mut DiagnosticCollector) {
 /// V16: Agent-template alignment — every agents/*.md must contain
 /// "Derived from" marker referencing reviewer-templates.md.
 /// (Larch-specific convention check.)
-pub fn validate_agent_template_alignment(diag: &mut DiagnosticCollector) {
+pub fn validate_agent_template_alignment(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let agents_dir = Path::new("agents");
     let templates = Path::new("skills/shared/reviewer-templates.md");
 
@@ -143,6 +148,11 @@ pub fn validate_agent_template_alignment(diag: &mut DiagnosticCollector) {
             _ => continue,
         };
 
+        let agent_path = format!("agents/{name}");
+        if exclude.is_excluded(&agent_path) {
+            continue;
+        }
+
         let content = match fs::read_to_string(&path) {
             Ok(c) => c,
             Err(_) => continue,
@@ -167,7 +177,7 @@ pub fn validate_agent_template_alignment(diag: &mut DiagnosticCollector) {
 /// V21: Agent-template count — number of ## Reviewer sections in
 /// skills/shared/reviewer-templates.md must equal number of agents/*.md files.
 /// (Larch-specific convention check.)
-pub fn validate_agent_template_count(diag: &mut DiagnosticCollector) {
+pub fn validate_agent_template_count(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let agents_dir = Path::new("agents");
     let templates = Path::new("skills/shared/reviewer-templates.md");
 
@@ -193,7 +203,10 @@ pub fn validate_agent_template_count(diag: &mut DiagnosticCollector) {
             if path.is_file() {
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                     if name.ends_with(".md") {
-                        agent_count += 1;
+                        let agent_path = format!("agents/{name}");
+                        if !exclude.is_excluded(&agent_path) {
+                            agent_count += 1;
+                        }
                     }
                 }
             }
@@ -232,7 +245,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_agents(&mut diag);
+        validate_agents(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -244,7 +257,7 @@ mod tests {
         std::env::set_current_dir(tmp.path()).unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_agents(&mut diag);
+        validate_agents(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("agents/ directory is missing"));
     }
@@ -259,7 +272,7 @@ mod tests {
         std::fs::create_dir_all("agents").unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_agents(&mut diag);
+        validate_agents(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("no .md files"));
     }
@@ -279,7 +292,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_agents(&mut diag);
+        validate_agents(&mut diag, &crate::config::ExcludeSet::default());
         assert!(diag.error_count() >= 1);
         assert!(diag.errors().iter().any(|e| e.contains("name")));
     }
@@ -302,7 +315,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_agent_template_alignment(&mut diag);
+        validate_agent_template_alignment(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -323,7 +336,7 @@ mod tests {
         .unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_agent_template_alignment(&mut diag);
+        validate_agent_template_alignment(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("missing"));
     }
@@ -347,7 +360,7 @@ mod tests {
         std::fs::write("agents/two.md", "---\nname: two\n---\n").unwrap();
 
         let mut diag = DiagnosticCollector::new();
-        validate_agent_template_count(&mut diag);
+        validate_agent_template_count(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 0);
     }
 
@@ -369,7 +382,7 @@ mod tests {
         // Only 1 agent but 2 templates
 
         let mut diag = DiagnosticCollector::new();
-        validate_agent_template_count(&mut diag);
+        validate_agent_template_count(&mut diag, &crate::config::ExcludeSet::default());
         assert_eq!(diag.error_count(), 1);
         assert!(diag.errors()[0].contains("mismatch"));
     }
@@ -389,7 +402,7 @@ mod tests {
         )
         .unwrap();
         let mut diag = DiagnosticCollector::new();
-        validate_agents(&mut diag);
+        validate_agents(&mut diag, &crate::config::ExcludeSet::default());
         assert!(diag.errors().iter().any(|e| e.contains("exceeds 1024")));
     }
 
@@ -407,7 +420,7 @@ mod tests {
         )
         .unwrap();
         let mut diag = DiagnosticCollector::new();
-        validate_agents(&mut diag);
+        validate_agents(&mut diag, &crate::config::ExcludeSet::default());
         assert!(diag.errors().iter().any(|e| e.contains("under 20")));
     }
 
@@ -425,7 +438,7 @@ mod tests {
         )
         .unwrap();
         let mut diag = DiagnosticCollector::new();
-        validate_agents(&mut diag);
+        validate_agents(&mut diag, &crate::config::ExcludeSet::default());
         assert!(
             diag.errors()
                 .iter()
@@ -446,7 +459,7 @@ mod tests {
         )
         .unwrap();
         let mut diag = DiagnosticCollector::new();
-        validate_agents(&mut diag);
+        validate_agents(&mut diag, &crate::config::ExcludeSet::default());
         assert!(
             !diag
                 .errors()
