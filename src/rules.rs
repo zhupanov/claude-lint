@@ -96,7 +96,7 @@ pub enum LintRule {
     EffortFieldInvalid,
     /// S026: shell field value is not bash/powershell
     ShellFieldInvalid,
-    /// S027: skill is unreachable (both disable-model-invocation and user-invocable false)
+    /// S027: skill is unreachable (disable-model-invocation: true and user-invocable: false)
     SkillUnreachable,
     /// S028: $ARGUMENTS used in body but argument-hint not set
     ArgsNoHint,

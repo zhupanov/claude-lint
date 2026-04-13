@@ -62,32 +62,59 @@ pub fn field_exists(fm_lines: &[String], key: &str) -> bool {
 
 /// Extract the body content after the frontmatter closing delimiter.
 /// Returns an empty string if the content has no frontmatter or no body.
+/// Handles both LF and CRLF line endings correctly.
 pub fn extract_body(content: &str) -> &str {
-    let mut lines = content.lines();
-    // Skip first line (opening ---)
-    match lines.next() {
-        Some("---") => {}
-        _ => return "",
+    let bytes = content.as_bytes();
+    // Check opening ---
+    if !content.starts_with("---") {
+        return "";
     }
-    // Skip frontmatter lines until closing ---
-    let mut offset = content.find('\n').map(|i| i + 1).unwrap_or(content.len());
-    for line in lines {
-        if line == "---" {
-            let body_start = offset + line.len();
-            if body_start < content.len() {
-                // Skip the newline after closing ---
-                let start = if content.as_bytes().get(body_start) == Some(&b'\n') {
-                    body_start + 1
-                } else {
-                    body_start
-                };
-                return &content[start..];
-            }
-            return "";
+    // Find end of first line (after opening ---)
+    let mut pos = 3;
+    if pos < bytes.len() && bytes[pos] == b'\r' {
+        pos += 1;
+    }
+    if pos < bytes.len() && bytes[pos] == b'\n' {
+        pos += 1;
+    } else {
+        return ""; // No newline after opening ---
+    }
+    // Scan for closing ---
+    loop {
+        if pos >= bytes.len() {
+            return ""; // No closing ---
         }
-        offset += line.len() + 1; // +1 for newline
+        // Check if current line is exactly "---"
+        if content[pos..].starts_with("---") {
+            let end_marker = pos + 3;
+            // Verify it's a complete line (followed by \r\n, \n, or EOF)
+            if end_marker >= bytes.len()
+                || bytes[end_marker] == b'\n'
+                || (bytes[end_marker] == b'\r'
+                    && end_marker + 1 < bytes.len()
+                    && bytes[end_marker + 1] == b'\n')
+            {
+                // Skip past the closing --- and its line ending
+                let mut body_start = end_marker;
+                if body_start < bytes.len() && bytes[body_start] == b'\r' {
+                    body_start += 1;
+                }
+                if body_start < bytes.len() && bytes[body_start] == b'\n' {
+                    body_start += 1;
+                }
+                return if body_start < bytes.len() {
+                    &content[body_start..]
+                } else {
+                    ""
+                };
+            }
+        }
+        // Advance to next line
+        match content[pos..].find('\n') {
+            Some(nl) => pos += nl + 1,
+            None => return "", // No more newlines, no closing ---
+        }
     }
-    ""
 }
 
 /// Get the value of a top-level scalar key from frontmatter lines.

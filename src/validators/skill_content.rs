@@ -238,8 +238,11 @@ fn check_body_content(info: &SkillInfo, diag: &mut DiagnosticCollector) {
     // S021: consecutive bash code blocks
     check_consecutive_bash(info, diag);
 
-    // S022: backslash paths
-    let re_backslash = Regex::new(r"\\[a-zA-Z]").unwrap();
+    // S022: backslash paths — require path-like context to avoid false positives
+    // on regex escapes (\s, \n, \t), LaTeX (\frac), etc.
+    // Matches: C:\Users, \dir\file, path\to\something (letter, backslash, letter pattern)
+    let re_backslash =
+        Regex::new(r"[A-Za-z]:\\[A-Za-z]|\\[A-Za-z][A-Za-z0-9_-]*\\[A-Za-z]").unwrap();
     // Only check outside code fences to reduce false positives
     let mut in_fence = false;
     for line in info.body.lines() {
@@ -424,7 +427,7 @@ fn check_frontmatter_fields(info: &SkillInfo, diag: &mut DiagnosticCollector) {
 
 fn check_cross_field(info: &SkillInfo, diag: &mut DiagnosticCollector) {
     // S028: $ARGUMENTS in body without argument-hint
-    let re_args = Regex::new(r"\$ARGUMENTS|\$\{ARGUMENTS\}|\$0|\$1|\$2").unwrap();
+    let re_args = Regex::new(r"\$ARGUMENTS|\$\{ARGUMENTS\}").unwrap();
     if re_args.is_match(&info.body) && !frontmatter::field_exists(&info.fm_lines, "argument-hint") {
         diag.report(
             LintRule::ArgsNoHint,
@@ -500,7 +503,9 @@ fn validate_nested_references(base_dir: &str, diag: &mut DiagnosticCollector) {
         Regex::new(r"\$\{CLAUDE_PLUGIN_ROOT\}/skills/shared/[a-zA-Z0-9._-]+\.md").unwrap();
 
     let skills = collect_skills(base_dir);
-    let mut visited = HashSet::new();
+    // Cache: which shared .md files are nested (avoids re-reading files from disk)
+    let mut checked: HashSet<String> = HashSet::new();
+    let mut nested: HashSet<String> = HashSet::new();
 
     for info in &skills {
         // Find shared-md references in this skill's body
@@ -513,21 +518,25 @@ fn validate_nested_references(base_dir: &str, diag: &mut DiagnosticCollector) {
                 continue; // S008 handles missing refs
             }
 
-            if !visited.insert(rel.clone()) {
-                continue; // Already checked this file
+            // Check the file once for nesting, cache result
+            if !checked.contains(&rel) {
+                checked.insert(rel.clone());
+                if let Ok(content) = fs::read_to_string(rel_path) {
+                    if re_shared.is_match(&content) {
+                        nested.insert(rel.clone());
+                    }
+                }
             }
 
-            // Read the referenced file and check for further references
-            if let Ok(content) = fs::read_to_string(rel_path) {
-                if re_shared.is_match(&content) {
-                    diag.report(
-                        LintRule::NestedRefDeep,
-                        &format!(
-                            "{}: references {} which itself references other shared .md files (keep references one level deep)",
-                            info.path, reference
-                        ),
-                    );
-                }
+            // Report for every referencing skill (not just the first)
+            if nested.contains(&rel) {
+                diag.report(
+                    LintRule::NestedRefDeep,
+                    &format!(
+                        "{}: references {} which itself references other shared .md files (keep references one level deep)",
+                        info.path, reference
+                    ),
+                );
             }
         }
     }
