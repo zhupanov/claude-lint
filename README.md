@@ -294,7 +294,7 @@ docs/
 
 Runs on pull requests to `main` and `workflow_dispatch`:
 
-- **lint** -- pre-commit linters (shell, markdown, JSON, actionlint,
+- **lint** -- pre-commit linters (shell, markdown, JSON, YAML, actionlint,
   Rust fmt); clippy is skipped here and runs in build-and-test instead
 - **build-and-test** -- `cargo build`, `cargo test`, `cargo clippy`
 - **musl-build** -- cross-compilation check for `x86_64-unknown-linux-musl`
@@ -312,6 +312,6 @@ Triggered on push to `main`, tag push (`v*`), or `workflow_dispatch`:
    a git tag if it doesn't exist
 2. **build** -- cross-compiles for Linux (x86_64, aarch64 musl) and macOS
    (aarch64)
-3. **release** -- creates a GitHub Release with tarballs and checksums
-4. **update major tag** -- moves the floating `v1` tag to the latest
-   release so `@v1` action references always resolve to the newest version
+3. **release** -- creates a GitHub Release with tarballs and checksums;
+   on a new release, also moves the floating `v1` tag forward so `@v1`
+   action references always resolve to the newest version
