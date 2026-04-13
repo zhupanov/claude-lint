@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.4] - 2026-04-13
+
+### Added
+
+- 7 new lint rules expanding coverage beyond skill content (A008-A010, D002-D003, G006-G007)
+- Agent quality: A008 description > 1024 chars, A009 description < 20 chars, A010 name charset [a-z0-9-]
+- CLAUDE.md: D002 size limit (500 lines), D003 TODO/FIXME/HACK/XXX detection
+- Published content: G006 TODO markers in skill bodies, G007 TODO markers in agent bodies
+- Code fence exclusion: TODO detection skips content inside fenced code blocks
+
 ## [1.0.3] - 2026-04-13
 
 ### Added
