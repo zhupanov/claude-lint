@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.8] - 2026-04-12
+
+### Added
+
+- `--list-scripts` CLI flag that outputs all `.sh` script paths discovered in skill and script directories
+- `scripts/shellcheck-scripts.sh` wrapper for piping discovered scripts to shellcheck
+- `make shellcheck-skills` Makefile target for running shellcheck on skill-discovered scripts
+- CI validation step for `--list-scripts` output in self-lint job
+- Shared `expand_script_dirs()` helper and directory pattern constants for script discovery
+- Unit tests for `expand_script_dirs`, `collect_script_paths`, and mode-scoped discovery
+
+### Changed
+
+- Extracted `detect_mode()` function from inline mode detection in `main.rs`
+- Refactored `check_executability_in_dirs` to use shared `expand_script_dirs` helper
+- CLI argument parsing now properly partitions flags and positional args with unknown flag rejection
+
 ## [0.2.7] - 2026-04-12
 
 ### Added
