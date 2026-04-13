@@ -61,8 +61,11 @@ fi
 # temp directory. Avoids writing into .git/ which triggers permission prompts.
 if [[ -n "${IMPLEMENT_TMPDIR:-}" ]]; then
   REASONING_DIR="$IMPLEMENT_TMPDIR"
+  [[ -d "$REASONING_DIR" ]] || err "IMPLEMENT_TMPDIR is set but does not exist: $REASONING_DIR"
 else
   REASONING_DIR="$(mktemp -d)"
+  # Clean up on failure; caller owns cleanup on success (needs to read REASONING_FILE).
+  trap 'rm -rf "$REASONING_DIR"' ERR
 fi
 REASONING_FILE="$REASONING_DIR/bump-version-reasoning.md"
 
