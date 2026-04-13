@@ -271,6 +271,7 @@ src/
 +-- diagnostic.rs        # DiagnosticCollector, Severity, config-aware filtering
 +-- frontmatter.rs       # YAML frontmatter extraction
 +-- rules.rs             # Central LintRule enum (88 rules, codes, names)
++-- test_helpers.rs      # Shared test utilities
 +-- validators/
     +-- mod.rs           # run_all -> run_basic / run_plugin dispatch
     +-- manifest.rs      # M001-M011: plugin.json & marketplace.json
@@ -291,10 +292,10 @@ docs/
 
 ### CI (`.github/workflows/ci.yaml`)
 
-Runs on pull requests to `main`:
+Runs on pull requests to `main` and `workflow_dispatch`:
 
-- **lint** -- pre-commit linters (shell, markdown, JSON, YAML, Rust
-  fmt/clippy)
+- **lint** -- pre-commit linters (shell, markdown, JSON, YAML, actionlint,
+  Rust fmt); clippy is skipped here and runs in build-and-test instead
 - **build-and-test** -- `cargo build`, `cargo test`, `cargo clippy`
 - **musl-build** -- cross-compilation check for `x86_64-unknown-linux-musl`
 - **self-lint** -- runs claude-lint against its own repo and validates
@@ -305,10 +306,12 @@ Runs on pull requests to `main`:
 
 ### Release (`.github/workflows/release.yml`)
 
-Triggered on push to `main` or tag push:
+Triggered on push to `main`, tag push (`v*`), or `workflow_dispatch`:
 
 1. **auto-tag** -- reads version from `package.json` / `Cargo.toml`, creates
    a git tag if it doesn't exist
 2. **build** -- cross-compiles for Linux (x86_64, aarch64 musl) and macOS
    (aarch64)
-3. **release** -- creates a GitHub Release with tarballs and checksums
+3. **release** -- creates a GitHub Release with tarballs and checksums;
+   on a new release, also moves the floating `v1` tag forward so `@v1`
+   action references always resolve to the newest version

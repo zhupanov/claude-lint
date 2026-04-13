@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.13] - 2026-04-13
+
+### Changed
+
+- Updated README Project Structure tree to include missing `src/test_helpers.rs`
+- Fixed CI/CD section: corrected lint job description (clippy runs in build-and-test, not lint), added actionlint and workflow\_dispatch triggers, documented floating major version tag update in release job
+
 ## [1.0.12] - 2026-04-13
 
 ### Added
