@@ -1,9 +1,8 @@
 # Claude Lint
 
 A linter for [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-configuration and plugins. Validates `.claude/` and `.claude-plugin/`
-directory structures, catching misconfigurations before they reach
-production.
+configuration and plugins. Validates `.claude/` and `.claude-plugin/`.
+Implemented in Rust, and fully configurable.
 
 ## Features
 
