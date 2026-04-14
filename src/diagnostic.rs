@@ -58,7 +58,7 @@ impl DiagnosticCollector {
 
     /// Report a diagnostic for the given rule. Checks config to determine
     /// disposition: suppress (ignore), downgrade to warning, or record as error.
-    /// Non-suppressed diagnostics are printed immediately to stderr.
+    /// Non-suppressed diagnostics are written to the configured writer.
     pub fn report(&mut self, rule: LintRule, msg: &str) {
         if self.config.ignore.contains(&rule) {
             self.suppressed_count += 1;
