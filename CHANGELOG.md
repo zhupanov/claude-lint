@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.14] - 2026-04-13
+
+### Fixed
+
+- Fixed frontmatter `get_field` and `get_field_state` to strip single-quoted YAML values (previously only double quotes were handled)
+- Deduplicated parsing logic into shared `strip_quotes` and `extract_raw_value` helpers
+
 ## [1.0.13] - 2026-04-13
 
 ### Changed
