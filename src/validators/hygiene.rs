@@ -697,23 +697,39 @@ fn strip_yaml_comments(content: &str) -> String {
 
 fn strip_trailing_yaml_comment(line: &str) -> String {
     let mut in_quote: Option<char> = None;
-    let chars: Vec<char> = line.chars().collect();
+    let mut prev_was_ws = false;
+    let mut skip_next = false;
 
-    for i in 0..chars.len() {
+    for (byte_pos, ch) in line.char_indices() {
+        if skip_next {
+            skip_next = false;
+            prev_was_ws = ch.is_whitespace();
+            continue;
+        }
         match in_quote {
             Some(q) => {
-                if chars[i] == q {
+                if q == '"' && ch == '\\' {
+                    skip_next = true;
+                } else if q == '\'' && ch == '\'' {
+                    let rest = &line[byte_pos + ch.len_utf8()..];
+                    if rest.starts_with('\'') {
+                        skip_next = true;
+                    } else {
+                        in_quote = None;
+                    }
+                } else if ch == q {
                     in_quote = None;
                 }
             }
             None => {
-                if chars[i] == '"' || chars[i] == '\'' {
-                    in_quote = Some(chars[i]);
-                } else if chars[i] == '#' && i > 0 && chars[i - 1].is_whitespace() {
-                    return line[..i].trim_end().to_string();
+                if ch == '"' || ch == '\'' {
+                    in_quote = Some(ch);
+                } else if ch == '#' && prev_was_ws {
+                    return line[..byte_pos].trim_end().to_string();
                 }
             }
         }
+        prev_was_ws = ch.is_whitespace();
     }
 
     line.to_string()
@@ -774,6 +790,28 @@ mod tests {
     fn test_strip_yaml_comments_preserves_unclosed_quote() {
         let result = strip_yaml_comments("key: \"unterminated # hash\n");
         assert!(result.contains("key: \"unterminated # hash"));
+    }
+
+    #[test]
+    fn test_strip_yaml_comments_multibyte_chars() {
+        let result = strip_yaml_comments("clé: \"über\" # comment\n");
+        assert!(result.contains("clé: \"über\""));
+        assert!(!result.contains("comment"));
+    }
+
+    #[test]
+    fn test_strip_yaml_comments_escaped_double_quote() {
+        let result =
+            strip_yaml_comments("key: \"say \\\"hello\\\" # still in\" # comment\n");
+        assert!(result.contains("# still in"));
+        assert!(!result.contains("# comment"));
+    }
+
+    #[test]
+    fn test_strip_yaml_comments_doubled_single_quote() {
+        let result = strip_yaml_comments("key: 'it''s a # value' # comment\n");
+        assert!(result.contains("it''s a # value"));
+        assert!(!result.contains("# comment"));
     }
 
     #[test]
