@@ -125,12 +125,9 @@ pub fn validate_marketplace_enriched(ctx: &LintContext, diag: &mut DiagnosticCol
         _ => return, // Missing/invalid already reported by V2
     };
 
-    let email = val
-        .get("owner")
-        .and_then(|o| o.get("email"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    if email.is_empty() {
+    let email_val = val.get("owner").and_then(|o| o.get("email"));
+    let email = email_val.and_then(|v| v.as_str()).unwrap_or("");
+    if email.is_empty() && email_val.is_none() {
         diag.report(
             LintRule::MarketplaceEnrichedMissing,
             &format!("{f} missing required field: owner.email"),
@@ -172,12 +169,9 @@ pub fn validate_plugin_enriched(ctx: &LintContext, diag: &mut DiagnosticCollecto
         );
     }
 
-    let email = val
-        .get("author")
-        .and_then(|o| o.get("email"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    if email.is_empty() {
+    let email_val = val.get("author").and_then(|o| o.get("email"));
+    let email = email_val.and_then(|v| v.as_str()).unwrap_or("");
+    if email.is_empty() && email_val.is_none() {
         diag.report(
             LintRule::PluginEnrichedMissing,
             &format!("{f} missing required field: author.email"),
