@@ -266,7 +266,9 @@ pub fn expand_script_dirs(patterns: &[&str]) -> Vec<PathBuf> {
                         } else {
                             base.join(seg)
                         };
-                        next.push(child);
+                        if child.is_dir() {
+                            next.push(child);
+                        }
                     }
                 }
                 candidates = next;
@@ -1175,6 +1177,17 @@ mod tests {
         assert_eq!(dirs.len(), 2);
         assert!(dirs[0].ends_with("skills/a/nested/x/scripts"));
         assert!(dirs[1].ends_with("skills/b/nested/y/scripts"));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_expand_script_dirs_glob_nonexistent_prefix() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        let dirs = expand_script_dirs(&["nonexistent/*/scripts"]);
+        assert!(dirs.is_empty());
     }
 
     // collect_script_paths tests
