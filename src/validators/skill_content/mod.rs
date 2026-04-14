@@ -19,7 +19,7 @@ pub(super) static RE_BACKSLASH_PATH: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"[A-Za-z]:\\[A-Za-z]|\\[A-Za-z][A-Za-z0-9_-]*\\[A-Za-z]").unwrap()
 });
 
-/// Validate skill content for public skills (skills/). Runs all S009-S049 rules.
+/// Validate skill content for public skills (skills/). Runs all S009-S052 rules.
 pub fn validate_skill_content(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let skills = collect_skills("skills", exclude);
     for info in &skills {
@@ -33,7 +33,7 @@ pub fn validate_skill_content(diag: &mut DiagnosticCollector, exclude: &ExcludeS
 }
 
 /// Validate skill content for private skills (.claude/skills/).
-/// Runs only "both-mode" rules (excludes S015, S016, S017, S029, S033, S036, S037, S038, S046, S047, S049).
+/// Runs only "both-mode" rules (excludes S015, S016, S017, S029, S033, S036, S037, S038, S046, S047, S049, S051, S052).
 pub fn validate_private_skill_content(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let skills = collect_skills(".claude/skills", exclude);
     for info in &skills {
@@ -1291,7 +1291,7 @@ mod tests {
     #[test]
     fn test_new_rules_lookup_by_code_and_name() {
         use crate::rules::LintRule;
-        // Verify S009-S049 rules round-trip via code and name lookups
+        // Verify S009-S052 rules round-trip via code and name lookups
         let new_rules = [
             ("S009", "name-too-long"),
             ("S010", "name-invalid-chars"),
@@ -1334,6 +1334,8 @@ mod tests {
             ("S047", "body-no-examples"),
             ("S048", "ref-name-generic"),
             ("S049", "name-not-gerund"),
+            ("S051", "script-deps-missing"),
+            ("S052", "script-verify-missing"),
         ];
         for (code, name) in &new_rules {
             assert!(
@@ -2048,6 +2050,306 @@ mod tests {
                 .iter()
                 .any(|e| e.contains("examples or templates")),
             "S047 should not fire"
+        );
+    }
+
+    // ── S051: script-deps-missing ────────────────────────────────────
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s051_script_with_deps_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill/scripts").unwrap();
+        std::fs::write("skills/my-skill/scripts/run.sh", "#!/bin/bash\n").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\n---\n## Dependencies\n\npip install requests\n\nRun scripts/run.sh\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("dependency/package")),
+            "S051 should not fire when deps keywords present"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s051_script_without_deps() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill/scripts").unwrap();
+        std::fs::write("skills/my-skill/scripts/run.sh", "#!/bin/bash\n").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\n---\nThis skill runs a script to do things.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("dependency/package")),
+            "S051 should fire when no deps keywords"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s051_non_script_skill_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\n---\nJust a plain skill with no scripts.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("dependency/package")),
+            "S051 should not fire for non-script skill"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s051_private_mode_skips() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all(".claude/skills/my-skill/scripts").unwrap();
+        std::fs::write(".claude/skills/my-skill/scripts/run.sh", "#!/bin/bash\n").unwrap();
+        std::fs::write(
+            ".claude/skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\n---\nThis skill runs a script to do things.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_private_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("dependency/package")),
+            "S051 should not fire in private mode"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s051_deps_in_code_fence_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill/scripts").unwrap();
+        std::fs::write("skills/my-skill/scripts/run.sh", "#!/bin/bash\n").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\n---\nRun the script.\n\n```bash\npip install requests\n```\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("dependency/package")),
+            "S051 should not fire when deps keyword is inside code fence"
+        );
+    }
+
+    // ── S052: script-verify-missing ───────────────────────────────────
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s052_script_with_verify_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill/scripts").unwrap();
+        std::fs::write("skills/my-skill/scripts/run.sh", "#!/bin/bash\n").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\n---\n## Dependencies\n\npip install foo\n\n## Validation\n\nRun the script and verify the output.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("verification/validation")),
+            "S052 should not fire when verify keywords present"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s052_script_without_verify() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill/scripts").unwrap();
+        std::fs::write("skills/my-skill/scripts/run.sh", "#!/bin/bash\n").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\n---\n## Dependencies\n\npip install foo\n\nThis skill does stuff.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("verification/validation")),
+            "S052 should fire when no verify keywords"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s052_non_script_skill_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\n---\nJust a plain skill.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("verification/validation")),
+            "S052 should not fire for non-script skill"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s052_private_mode_skips() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all(".claude/skills/my-skill/scripts").unwrap();
+        std::fs::write(".claude/skills/my-skill/scripts/run.sh", "#!/bin/bash\n").unwrap();
+        std::fs::write(
+            ".claude/skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\n---\n## Dependencies\n\npip install foo\n\nThis skill does stuff.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_private_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("verification/validation")),
+            "S052 should not fire in private mode"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s052_verify_in_code_fence_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill/scripts").unwrap();
+        std::fs::write("skills/my-skill/scripts/run.sh", "#!/bin/bash\n").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\n---\n## Dependencies\n\npip install foo\n\n```bash\n# verify the output\necho 'done'\n```\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("verification/validation")),
+            "S052 should not fire when verify keyword is inside code fence"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s051_s052_detected_via_body_ref() {
+        // Script detected via body .sh reference (no scripts/ dir)
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\n---\nRun setup.sh to configure the environment.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("dependency/package")),
+            "S051 should fire for body .sh reference without deps"
+        );
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("verification/validation")),
+            "S052 should fire for body .sh reference without verify"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s051_s052_independence() {
+        // Script-backed skill with deps but no verify: only S052 fires
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill/scripts").unwrap();
+        std::fs::write("skills/my-skill/scripts/run.sh", "#!/bin/bash\n").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\n---\n## Dependencies\n\npip install foo\n\nThis does stuff.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("dependency/package")),
+            "S051 should not fire when deps present"
+        );
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("verification/validation")),
+            "S052 should fire when no verify"
         );
     }
 

@@ -144,6 +144,10 @@ pub enum LintRule {
     RefNameGeneric,
     /// S049: skill name not in gerund form
     NameNotGerund,
+    /// S051: script-backed skill lacks dependency/package notes
+    ScriptDepsMissing,
+    /// S052: script-backed skill lacks verification step
+    ScriptVerifyMissing,
 
     // ── Agents (A) ────────────────────────────────────────────────
     /// A001: agents/ directory is missing
@@ -289,6 +293,8 @@ impl LintRule {
             Self::BodyNoExamples => "S047",
             Self::RefNameGeneric => "S048",
             Self::NameNotGerund => "S049",
+            Self::ScriptDepsMissing => "S051",
+            Self::ScriptVerifyMissing => "S052",
 
             Self::AgentsDirMissing => "A001",
             Self::AgentFrontmatterMalformed => "A002",
@@ -399,6 +405,8 @@ impl LintRule {
             Self::BodyNoExamples => "body-no-examples",
             Self::RefNameGeneric => "ref-name-generic",
             Self::NameNotGerund => "name-not-gerund",
+            Self::ScriptDepsMissing => "script-deps-missing",
+            Self::ScriptVerifyMissing => "script-verify-missing",
 
             Self::AgentsDirMissing => "agents-dir-missing",
             Self::AgentFrontmatterMalformed => "agent-frontmatter-malformed",
@@ -516,6 +524,8 @@ pub const ALL_RULES: &[LintRule] = &[
     LintRule::BodyNoExamples,
     LintRule::RefNameGeneric,
     LintRule::NameNotGerund,
+    LintRule::ScriptDepsMissing,
+    LintRule::ScriptVerifyMissing,
     LintRule::AgentsDirMissing,
     LintRule::AgentFrontmatterMalformed,
     LintRule::AgentFieldMissing,
@@ -558,7 +568,7 @@ mod tests {
         // will still compile (match is exhaustive), but this test will catch it.
         assert_eq!(
             ALL_RULES.len(),
-            96,
+            98,
             "ALL_RULES length must match enum variant count"
         );
     }

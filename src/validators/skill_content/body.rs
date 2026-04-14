@@ -42,6 +42,16 @@ static RE_EXAMPLE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^\s*(?:#{2,3} (?:Example|Usage|Template|Format)\b|\*\*(?:Example|Input|Output)(?:\s*\d*)?:\*\*)").unwrap()
 });
 
+// S051: Dependency keywords (case-insensitive)
+static RE_DEPS_KEYWORDS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(?:pip3?\s+install|npm\s+install|brew\s+install|apt\s+install|cargo\s+install|\brequires\b|\bdependencies\b|\bprerequisite\b|\binstall\b|requirements\.txt|package\.json|Cargo\.toml|(?m)^#{2,3}\s+(?:Dependencies|Requirements|Prerequisites|Setup)\b)").unwrap()
+});
+
+// S052: Verification keywords (case-insensitive)
+static RE_VERIFY_KEYWORDS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(?:\bverify\b|\bvalidate\b|\bcheck\b|\btest\b|\bconfirm\b|if\s+.*\bfails\b|if\s+.*\berrors\b|validation\s+passes|run\s+.*\bagain\b|\brepeat\b|\bre-?run\b|(?m)^#{2,3}\s+(?:Verify|Validation|Testing)\b)").unwrap()
+});
+
 // S021: Consecutive bash
 static RE_BASH_FENCE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^```(bash|sh|shell)\s*$").unwrap());
@@ -181,6 +191,36 @@ pub(super) fn check_body_content(
             );
         }
     }
+
+    // S051/S052: script-backed skill quality checks (plugin-only)
+    // Intentionally scans full body INCLUDING code fences — dependency
+    // declarations and verification steps are often in code blocks.
+    if plugin_mode && is_script_backed(info) {
+        if !RE_DEPS_KEYWORDS.is_match(&info.body) {
+            diag.report(
+                LintRule::ScriptDepsMissing,
+                &format!(
+                    "{}: script-backed skill lacks dependency/package documentation",
+                    info.path
+                ),
+            );
+        }
+        if !RE_VERIFY_KEYWORDS.is_match(&info.body) {
+            diag.report(
+                LintRule::ScriptVerifyMissing,
+                &format!(
+                    "{}: script-backed skill lacks verification/validation steps",
+                    info.path
+                ),
+            );
+        }
+    }
+}
+
+/// A skill is "script-backed" if it has a non-empty `scripts/` subdirectory
+/// or its body references script file extensions (.sh, .py, .js, .ts).
+fn is_script_backed(info: &SkillInfo) -> bool {
+    info.has_scripts_dir || RE_BODY_FILE_REF.is_match(&info.body)
 }
 
 fn check_consecutive_bash(info: &SkillInfo, diag: &mut DiagnosticCollector) {

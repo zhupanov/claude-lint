@@ -7,7 +7,7 @@ configuration and plugins.
 
 ## Features
 
-- **96 lint rules** across 9 categories (Manifest, Hooks, Skills, Agents,
+- **98 lint rules** across 9 categories (Manifest, Hooks, Skills, Agents,
   Hygiene, Email, User Config, Slack, Docs)
 - **Two lint modes**:
   - **Basic mode** -- validates `.claude/` contents (settings, hooks, private
@@ -202,7 +202,7 @@ warning[G005/security-md-missing]: SECURITY.md is missing from repo root
 
 ## Lint Rules
 
-Claude Lint ships **96 rules** organized into 9 categories:
+Claude Lint ships **98 rules** organized into 9 categories:
 
 | Category | Prefix | Rules | Description |
 |----------|--------|-------|-------------|
@@ -224,7 +224,7 @@ see **[docs/rules.md](docs/rules.md)**.
 | Mode | Trigger | Scope |
 |------|---------|-------|
 | **Basic** | `.claude/` directory exists | Settings hooks, private skill frontmatter, script refs, executability, both-mode S-rules |
-| **Plugin** | `.claude-plugin/` directory exists | All 96 rules including manifest, agents, hygiene, and plugin-only S-rules |
+| **Plugin** | `.claude-plugin/` directory exists | All 98 rules including manifest, agents, hygiene, and plugin-only S-rules |
 
 If neither directory exists, the tool prints "Nothing to lint" and exits 0.
 
@@ -270,7 +270,7 @@ src/
 +-- context.rs           # LintContext, ManifestState, LintMode
 +-- diagnostic.rs        # DiagnosticCollector, Severity, config-aware filtering
 +-- frontmatter.rs       # YAML frontmatter extraction
-+-- rules.rs             # Central LintRule enum (96 rules, codes, names)
++-- rules.rs             # Central LintRule enum (98 rules, codes, names)
 +-- test_helpers.rs      # Shared test utilities
 +-- validators/
     +-- mod.rs           # run_all -> run_basic / run_plugin dispatch
