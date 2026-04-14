@@ -136,6 +136,10 @@ pub enum LintRule {
     McpToolUnqualified,
     /// S045: allowed-tools uses YAML list syntax instead of comma-separated scalar
     ToolsListSyntax,
+    /// S046: Long skill body lacks workflow structure
+    BodyNoWorkflow,
+    /// S047: Long skill body lacks examples or templates
+    BodyNoExamples,
     /// S048: non-descriptive reference file name in skill directory
     RefNameGeneric,
     /// S049: skill name not in gerund form
@@ -281,6 +285,8 @@ impl LintRule {
             Self::FrontmatterBackslash => "S043",
             Self::McpToolUnqualified => "S044",
             Self::ToolsListSyntax => "S045",
+            Self::BodyNoWorkflow => "S046",
+            Self::BodyNoExamples => "S047",
             Self::RefNameGeneric => "S048",
             Self::NameNotGerund => "S049",
 
@@ -389,6 +395,8 @@ impl LintRule {
             Self::FrontmatterBackslash => "frontmatter-backslash",
             Self::McpToolUnqualified => "mcp-tool-unqualified",
             Self::ToolsListSyntax => "tools-list-syntax",
+            Self::BodyNoWorkflow => "body-no-workflow",
+            Self::BodyNoExamples => "body-no-examples",
             Self::RefNameGeneric => "ref-name-generic",
             Self::NameNotGerund => "name-not-gerund",
 
@@ -504,6 +512,8 @@ pub const ALL_RULES: &[LintRule] = &[
     LintRule::FrontmatterBackslash,
     LintRule::McpToolUnqualified,
     LintRule::ToolsListSyntax,
+    LintRule::BodyNoWorkflow,
+    LintRule::BodyNoExamples,
     LintRule::RefNameGeneric,
     LintRule::NameNotGerund,
     LintRule::AgentsDirMissing,
@@ -548,7 +558,7 @@ mod tests {
         // will still compile (match is exhaustive), but this test will catch it.
         assert_eq!(
             ALL_RULES.len(),
-            94,
+            96,
             "ALL_RULES length must match enum variant count"
         );
     }

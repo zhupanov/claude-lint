@@ -19,7 +19,7 @@ pub(super) static RE_BACKSLASH_PATH: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"[A-Za-z]:\\[A-Za-z]|\\[A-Za-z][A-Za-z0-9_-]*\\[A-Za-z]").unwrap()
 });
 
-/// Validate skill content for public skills (skills/). Runs S009-S045, S048, S049.
+/// Validate skill content for public skills (skills/). Runs all S009-S049 rules.
 pub fn validate_skill_content(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let skills = collect_skills("skills", exclude);
     for info in &skills {
@@ -33,7 +33,7 @@ pub fn validate_skill_content(diag: &mut DiagnosticCollector, exclude: &ExcludeS
 }
 
 /// Validate skill content for private skills (.claude/skills/).
-/// Runs only "both-mode" rules (excludes S015, S016, S017, S029, S033, S036, S037, S038, S049).
+/// Runs only "both-mode" rules (excludes S015, S016, S017, S029, S033, S036, S037, S038, S046, S047, S049).
 pub fn validate_private_skill_content(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let skills = collect_skills(".claude/skills", exclude);
     for info in &skills {
@@ -1291,7 +1291,7 @@ mod tests {
     #[test]
     fn test_new_rules_lookup_by_code_and_name() {
         use crate::rules::LintRule;
-        // Verify S009-S043 rules round-trip via code and name lookups
+        // Verify S009-S049 rules round-trip via code and name lookups
         let new_rules = [
             ("S009", "name-too-long"),
             ("S010", "name-invalid-chars"),
@@ -1330,6 +1330,8 @@ mod tests {
             ("S043", "frontmatter-backslash"),
             ("S044", "mcp-tool-unqualified"),
             ("S045", "tools-list-syntax"),
+            ("S046", "body-no-workflow"),
+            ("S047", "body-no-examples"),
             ("S048", "ref-name-generic"),
             ("S049", "name-not-gerund"),
         ];
@@ -1765,6 +1767,290 @@ mod tests {
         );
     }
 
+    // ── S046: body-no-workflow ─────────────────────────────────────────
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s046_body_no_workflow() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        let body = "Some plain text without workflow structure\n".repeat(301);
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\n{body}"),
+        ).unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("workflow structure"))
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s046_body_with_workflow_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        let mut body = "Some text\n".repeat(300);
+        body.push_str("## Steps\n");
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\n{body}"),
+        ).unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("workflow structure"))
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s046_short_body_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\nShort body without workflow.\n",
+        ).unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("workflow structure"))
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s046_private_mode_skips() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all(".claude/skills/my-skill").unwrap();
+        let body = "Some plain text without workflow\n".repeat(301);
+        std::fs::write(
+            ".claude/skills/my-skill/SKILL.md",
+            format!(
+                "---\nname: my-skill\ndescription: A valid skill description here\n---\n{body}"
+            ),
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_private_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("workflow structure"))
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s046_workflow_in_fence_not_counted() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        let mut body = "Some text\n".repeat(295);
+        body.push_str(
+            "```\n## Steps\n- [ ] item\n**Step 1**\n1. first\n2. second\n3. third\n```\n",
+        );
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\n{body}"),
+        ).unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("workflow structure"))
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s046_numbered_list_workflow() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        let mut body = "Some text\n".repeat(298);
+        body.push_str("1. First step\n2. Second step\n3. Third step\n");
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\n{body}"),
+        ).unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("workflow structure"))
+        );
+    }
+
+    // ── S047: body-no-examples ──────────────────────────────────────────
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s047_body_no_examples() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        let body = "Some plain text without examples\n".repeat(201);
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\n{body}"),
+        ).unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("examples or templates"))
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s047_body_with_examples_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        let mut body = "Some text\n".repeat(200);
+        body.push_str("## Example\n");
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\n{body}"),
+        ).unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("examples or templates"))
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s047_short_body_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\nShort body without examples.\n",
+        ).unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("examples or templates"))
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s047_private_mode_skips() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all(".claude/skills/my-skill").unwrap();
+        let body = "Some plain text without examples\n".repeat(201);
+        std::fs::write(
+            ".claude/skills/my-skill/SKILL.md",
+            format!(
+                "---\nname: my-skill\ndescription: A valid skill description here\n---\n{body}"
+            ),
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_private_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("examples or templates"))
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s047_example_in_fence_not_counted() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        let mut body = "Some text\n".repeat(196);
+        body.push_str("```\n## Example\n**Input:**\n**Output:**\n## Usage\n```\n");
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\n{body}"),
+        ).unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("examples or templates"))
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s046_s047_independence() {
+        // 301-line body with examples but no workflow: only S046 fires
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        let mut body = "Some text\n".repeat(300);
+        body.push_str("## Example\n");
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\n{body}"),
+        ).unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("workflow structure")),
+            "S046 should fire"
+        );
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("examples or templates")),
+            "S047 should not fire"
+        );
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // Boundary tests
     // ═══════════════════════════════════════════════════════════════════
@@ -2181,6 +2467,54 @@ mod tests {
             0,
             "S007 should not fire for allowed-tools when S044 applies, got: {:?}",
             diag.errors()
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s046_boundary_300_lines_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        let body = "Some text without workflow\n".repeat(300);
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: Use when testing boundary\n---\n{body}"),
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("workflow structure")),
+            "S046 should not fire at exactly 300 lines"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s047_boundary_200_lines_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        let body = "Some text without examples\n".repeat(200);
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: Use when testing boundary\n---\n{body}"),
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("examples or templates")),
+            "S047 should not fire at exactly 200 lines"
         );
     }
 

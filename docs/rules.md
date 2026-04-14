@@ -1,6 +1,6 @@
 # Lint Rules Reference
 
-Claude Lint ships 94 rules across 9 categories. Every rule has a unique
+Claude Lint ships 96 rules across 9 categories. Every rule has a unique
 code (e.g., `M001`) and a human-readable name (e.g., `plugin-json-missing`).
 Either form can be used in `claude-lint.toml` to ignore or downgrade a rule.
 
@@ -74,7 +74,7 @@ Either form can be used in `claude-lint.toml` to ignore or downgrade a rule.
 | S018 | `desc-has-xml` | Skill description contains XML/HTML tags | Both |
 | S034 | `desc-too-short` | Skill description under 20 characters | Both |
 
-### Body Content (S019--S022, S037--S038, S041)
+### Body Content (S019--S022, S037--S038, S041, S046--S047)
 
 | Code | Name | Description | Mode |
 |------|------|-------------|------|
@@ -85,6 +85,8 @@ Either form can be used in `claude-lint.toml` to ignore or downgrade a rule.
 | S037 | `body-no-refs` | Body exceeds 300 lines with no file references | Plugin |
 | S038 | `time-sensitive` | Body contains time-sensitive date/year patterns | Plugin |
 | S041 | `fork-no-task` | `context: fork` set but body lacks task instructions | Both |
+| S046 | `body-no-workflow` | Body exceeds 300 lines with no workflow structure | Plugin |
+| S047 | `body-no-examples` | Body exceeds 200 lines with no examples or templates | Plugin |
 
 ### Frontmatter Field Types (S023--S027)
 
