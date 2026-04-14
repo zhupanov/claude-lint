@@ -137,38 +137,37 @@ fn check_description_quality(info: &SkillInfo, plugin_mode: bool, diag: &mut Dia
         None => return, // S005 fires from existing validator
     };
 
+    let char_count = desc.chars().count();
+
     // S014: description too long
-    if desc.chars().count() > 1024 {
+    if char_count > 1024 {
         diag.report(
             LintRule::DescTooLong,
             &format!(
                 "{}: description exceeds 1024 characters ({})",
-                info.path,
-                desc.chars().count()
+                info.path, char_count
             ),
         );
     }
 
     // S034: description too short
-    if desc.chars().count() < 20 {
+    if char_count < 20 {
         diag.report(
             LintRule::DescTooShort,
             &format!(
                 "{}: description is under 20 characters ({})",
-                info.path,
-                desc.chars().count()
+                info.path, char_count
             ),
         );
     }
 
     // S015: description truncated in listing (plugin-only)
-    if plugin_mode && desc.chars().count() > 250 {
+    if plugin_mode && char_count > 250 {
         diag.report(
             LintRule::DescTruncated,
             &format!(
                 "{}: description exceeds 250 characters ({}) and will be truncated in skill listing",
-                info.path,
-                desc.chars().count()
+                info.path, char_count
             ),
         );
     }
@@ -1140,6 +1139,27 @@ mod tests {
         assert!(diag.errors().iter().any(|e| e.contains("exceeds 1024")));
     }
 
+    #[test]
+    #[serial_test::serial]
+    fn test_s014_multibyte_chars_count_correctly() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        // 1025 CJK characters (3 bytes each) = 3075 bytes but only 1025 chars
+        let desc = "\u{4e00}".repeat(1025);
+        assert_eq!(desc.chars().count(), 1025);
+        assert!(desc.len() > 1025);
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: {desc}\n---\nBody\n"),
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(diag.errors().iter().any(|e| e.contains("exceeds 1024")));
+    }
+
     // ── S015: desc-truncated ─────────────────────────────────────────
 
     #[test]
@@ -1912,6 +1932,27 @@ mod tests {
         std::fs::write(
             "skills/my-skill/SKILL.md",
             "---\nname: my-skill\ndescription: Short\n---\nBody content\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(diag.errors().iter().any(|e| e.contains("under 20")));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s034_multibyte_chars_count_correctly() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        // 19 CJK characters (3 bytes each) = 57 bytes but only 19 chars
+        let desc = "\u{4e00}".repeat(19);
+        assert_eq!(desc.chars().count(), 19);
+        assert!(desc.len() > 19);
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            format!("---\nname: my-skill\ndescription: {desc}\n---\nBody\n"),
         )
         .unwrap();
         let mut diag = DiagnosticCollector::new();
