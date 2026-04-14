@@ -48,6 +48,8 @@ fn strip_quotes(val: &str) -> &str {
 /// Extract the raw value for a key from frontmatter lines.
 /// Strips leading whitespace and outer quotes (double or single).
 /// Returns `None` if the key is not found, `Some("")` if the value is empty after stripping.
+/// Note: uses `starts_with("{key}:")` — the trailing colon prevents prefix collisions
+/// (e.g., looking up "name" won't match a "namespace:" line).
 fn extract_raw_value<'a>(fm_lines: &'a [String], key: &str) -> Option<&'a str> {
     let prefix = format!("{key}:");
     for line in fm_lines {

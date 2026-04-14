@@ -2,6 +2,7 @@ use crate::config::ExcludeSet;
 use crate::diagnostic::DiagnosticCollector;
 use crate::frontmatter;
 use crate::rules::LintRule;
+use regex::Regex;
 use std::fs;
 use std::path::Path;
 
@@ -15,7 +16,7 @@ pub fn validate_agents(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
 
     let mut found = 0;
     let mut excluded_count = 0;
-    let re_name_invalid = regex::Regex::new(r"[^a-z0-9-]").unwrap();
+    let re_name_invalid = Regex::new(r"[^a-z0-9-]").unwrap();
     let entries = match fs::read_dir(agents_dir) {
         Ok(e) => e,
         Err(_) => return,
