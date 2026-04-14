@@ -26,13 +26,18 @@ fn is_desc_redundant(name: &str, desc: &str) -> bool {
     let name_words: HashSet<&str> = name_lower.split_whitespace().collect();
 
     let desc_lower = desc.to_lowercase();
-    let desc_all_words: Vec<&str> = desc_lower.split_whitespace().collect();
-    let desc_word_count = desc_all_words.len();
+    // Strip leading/trailing punctuation from each token so "analyzer." matches "analyzer".
+    let desc_stripped: Vec<String> = desc_lower
+        .split_whitespace()
+        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_string())
+        .filter(|w| !w.is_empty())
+        .collect();
+    let desc_word_count = desc_stripped.len();
 
     let stopwords: HashSet<&str> = STOPWORDS.iter().copied().collect();
-    let desc_content_words: HashSet<&str> = desc_all_words
+    let desc_content_words: HashSet<&str> = desc_stripped
         .iter()
-        .copied()
+        .map(|w| w.as_str())
         .filter(|w| !stopwords.contains(w))
         .collect();
 
@@ -52,7 +57,9 @@ fn is_desc_redundant(name: &str, desc: &str) -> bool {
     // Token containment path: flag if all name words appear in the description
     // and the description adds at most one content word beyond the name
     // (catching filler like "tool", "agent", "helper" without listing them).
-    if !name_words.is_empty() && name_words.is_subset(&desc_content_words) {
+    // Require at least 2 name words to avoid false positives on single-word names
+    // (e.g., name "code" with desc "code reviewer" is a valid description).
+    if name_words.len() >= 2 && name_words.is_subset(&desc_content_words) {
         let extra_content = desc_content_words.difference(&name_words).count();
         if extra_content <= 1 {
             return true;
@@ -677,10 +684,22 @@ mod tests {
     fn test_is_desc_redundant_low_jaccard_passes() {
         // Low word overlap should not fire even with short desc.
         // name={code,analyzer}, desc={static,analysis,tool} → jaccard=0/5=0
-        assert!(!is_desc_redundant(
-            "code-analyzer",
-            "Static analysis tool"
-        ));
+        assert!(!is_desc_redundant("code-analyzer", "Static analysis tool"));
+    }
+
+    #[test]
+    fn test_is_desc_redundant_punctuation_stripped() {
+        // Trailing punctuation should be stripped — "analyzer." matches "analyzer"
+        assert!(is_desc_redundant("code-analyzer", "A code analyzer."));
+        // Comma after word should also be stripped
+        assert!(is_desc_redundant("code-analyzer", "code analyzer, tool"));
+    }
+
+    #[test]
+    fn test_is_desc_redundant_single_word_name_no_false_positive() {
+        // Single-word name with meaningful two-word description should NOT fire
+        assert!(!is_desc_redundant("code", "code reviewer"));
+        assert!(!is_desc_redundant("api", "api gateway"));
     }
 
     #[test]
