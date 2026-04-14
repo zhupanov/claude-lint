@@ -73,27 +73,19 @@ pub fn validate_agents(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
         }
 
         // A008: agent description too long
-        if let Some(ref desc) = fm_desc {
-            if desc.len() > 1024 {
-                diag.report(
-                    LintRule::AgentDescLong,
-                    &format!(
-                        "{agent_path}: description exceeds 1024 characters ({})",
-                        desc.len()
-                    ),
-                );
-            }
-        }
-
         // A009: agent description too short
         if let Some(ref desc) = fm_desc {
-            if desc.len() < 20 {
+            let char_count = desc.chars().count();
+            if char_count > 1024 {
+                diag.report(
+                    LintRule::AgentDescLong,
+                    &format!("{agent_path}: description exceeds 1024 characters ({char_count})"),
+                );
+            }
+            if char_count < 20 {
                 diag.report(
                     LintRule::AgentDescShort,
-                    &format!(
-                        "{agent_path}: description is under 20 characters ({})",
-                        desc.len()
-                    ),
+                    &format!("{agent_path}: description is under 20 characters ({char_count})"),
                 );
             }
         }
@@ -419,6 +411,86 @@ mod tests {
         std::fs::write(
             "agents/general.md",
             "---\nname: general\ndescription: Short\n---\nBody\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_agents(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(diag.errors().iter().any(|e| e.contains("under 20")));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_a008_boundary_1024_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("agents").unwrap();
+        let desc = format!("Use when testing {}", "x".repeat(1007));
+        assert_eq!(desc.chars().count(), 1024);
+        std::fs::write(
+            "agents/general.md",
+            format!("---\nname: general\ndescription: {desc}\n---\nBody\n"),
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_agents(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(!diag.errors().iter().any(|e| e.contains("exceeds 1024")));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_a008_multibyte_chars_count_correctly() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("agents").unwrap();
+        // 1025 CJK characters (3 bytes each) = 3075 bytes but only 1025 chars
+        let desc = "\u{4e00}".repeat(1025);
+        assert_eq!(desc.chars().count(), 1025);
+        assert!(desc.len() > 1025); // bytes > chars
+        std::fs::write(
+            "agents/general.md",
+            format!("---\nname: general\ndescription: {desc}\n---\nBody\n"),
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_agents(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(diag.errors().iter().any(|e| e.contains("exceeds 1024")));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_a009_boundary_20_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("agents").unwrap();
+        let desc = "Use when needed now!";
+        assert_eq!(desc.chars().count(), 20);
+        std::fs::write(
+            "agents/general.md",
+            format!("---\nname: general\ndescription: {desc}\n---\nBody\n"),
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_agents(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(!diag.errors().iter().any(|e| e.contains("under 20")));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_a009_multibyte_chars_count_correctly() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("agents").unwrap();
+        // 19 CJK characters (3 bytes each) = 57 bytes but only 19 chars
+        let desc = "\u{4e00}".repeat(19);
+        assert_eq!(desc.chars().count(), 19);
+        assert!(desc.len() > 19); // bytes > chars
+        std::fs::write(
+            "agents/general.md",
+            format!("---\nname: general\ndescription: {desc}\n---\nBody\n"),
         )
         .unwrap();
         let mut diag = DiagnosticCollector::new();
