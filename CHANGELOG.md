@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.32] - 2026-04-14
+
+### Added
+
+- Added S051 `script-deps-missing` rule: detects script-backed skills lacking dependency/package documentation (plugin-only)
+- Added S052 `script-verify-missing` rule: detects script-backed skills lacking verification/validation steps (plugin-only)
+- Added `has_scripts_dir` field to `SkillInfo` for clean separation of filesystem detection from content validation
+
 ## [1.0.28] - 2026-04-14
 
 ### Added
