@@ -208,6 +208,7 @@ pub fn validate_private_script_references(diag: &mut DiagnosticCollector, exclud
 
 /// V10: Executability — every .sh file under scripts/, skills/*/scripts/,
 /// and .claude/skills/*/scripts/ must be chmod +x.
+#[cfg(unix)]
 pub fn validate_executability(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     check_executability_in_dirs(
         &["scripts", "skills/*/scripts", ".claude/skills/*/scripts"],
@@ -216,32 +217,65 @@ pub fn validate_executability(diag: &mut DiagnosticCollector, exclude: &ExcludeS
     );
 }
 
+#[cfg(not(unix))]
+pub fn validate_executability(_diag: &mut DiagnosticCollector, _exclude: &ExcludeSet) {}
+
 /// V10-adapted: Executability for private .claude/skills/*/scripts/*.sh only.
+#[cfg(unix)]
 pub fn validate_private_executability(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     check_executability_in_dirs(&[".claude/skills/*/scripts"], diag, exclude);
 }
 
+#[cfg(not(unix))]
+pub fn validate_private_executability(_diag: &mut DiagnosticCollector, _exclude: &ExcludeSet) {}
+
 /// Expand glob-like directory patterns into concrete directory paths.
-/// Handles single-`*` patterns (e.g., `skills/*/scripts`) and plain directories.
+/// Supports multiple `*` wildcards (e.g., `skills/*/nested/*/scripts`).
 pub fn expand_script_dirs(patterns: &[&str]) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     for pattern in patterns {
         if pattern.contains('*') {
-            let parts: Vec<&str> = pattern.split('*').collect();
-            if parts.len() == 2 {
-                let prefix = parts[0].trim_end_matches('/');
-                let suffix = parts[1].trim_start_matches('/');
-                let base = Path::new(prefix);
-                if !base.is_dir() {
-                    continue;
-                }
-                if let Ok(entries) = fs::read_dir(base) {
-                    for entry in entries.flatten() {
-                        let sub = entry.path().join(suffix);
-                        if sub.is_dir() {
-                            dirs.push(sub);
+            let segments: Vec<&str> = pattern.split('/').collect();
+            let mut candidates = vec![PathBuf::new()];
+            for seg in &segments {
+                let mut next = Vec::new();
+                if *seg == "*" {
+                    for base in &candidates {
+                        let read_dir = if base.as_os_str().is_empty() {
+                            fs::read_dir(".")
+                        } else {
+                            fs::read_dir(base)
+                        };
+                        if let Ok(entries) = read_dir {
+                            for entry in entries.flatten() {
+                                if entry.path().is_dir() {
+                                    let child = if base.as_os_str().is_empty() {
+                                        PathBuf::from(entry.file_name())
+                                    } else {
+                                        base.join(entry.file_name())
+                                    };
+                                    next.push(child);
+                                }
+                            }
                         }
                     }
+                } else {
+                    for base in &candidates {
+                        let child = if base.as_os_str().is_empty() {
+                            PathBuf::from(seg)
+                        } else {
+                            base.join(seg)
+                        };
+                        if child.is_dir() {
+                            next.push(child);
+                        }
+                    }
+                }
+                candidates = next;
+            }
+            for c in candidates {
+                if c.is_dir() {
+                    dirs.push(c);
                 }
             }
         } else {
@@ -254,6 +288,7 @@ pub fn expand_script_dirs(patterns: &[&str]) -> Vec<PathBuf> {
     dirs
 }
 
+#[cfg(unix)]
 fn check_executability_in_dirs(
     patterns: &[&str],
     diag: &mut DiagnosticCollector,
@@ -295,7 +330,10 @@ pub fn collect_script_paths(mode: LintMode, exclude: &ExcludeSet) -> Vec<String>
     paths.into_iter().collect()
 }
 
+#[cfg(unix)]
 fn check_sh_executability(dir: &Path, diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
+    use std::os::unix::fs::PermissionsExt;
+
     let entries = match fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
@@ -316,17 +354,13 @@ fn check_sh_executability(dir: &Path, diag: &mut DiagnosticCollector, exclude: &
             continue;
         }
 
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if let Ok(meta) = path.metadata() {
-                if meta.permissions().mode() & 0o111 == 0 {
-                    diag.report(
-                        LintRule::ScriptNotExecutable,
-                        &format!("script not executable: {}", path.display()),
-                    );
-                    let _ = name; // suppress unused warning
-                }
+        if let Ok(meta) = path.metadata() {
+            if meta.permissions().mode() & 0o111 == 0 {
+                diag.report(
+                    LintRule::ScriptNotExecutable,
+                    &format!("script not executable: {}", path.display()),
+                );
+                let _ = name;
             }
         }
     }
@@ -1122,6 +1156,37 @@ mod tests {
         std::env::set_current_dir(tmp.path()).unwrap();
 
         let dirs = expand_script_dirs(&["nonexistent"]);
+        assert!(dirs.is_empty());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_expand_script_dirs_multi_glob() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        // Create skills/a/nested/x/scripts and skills/b/nested/y/scripts
+        std::fs::create_dir_all("skills/a/nested/x/scripts").unwrap();
+        std::fs::create_dir_all("skills/b/nested/y/scripts").unwrap();
+        // This should NOT match (wrong intermediate dir name)
+        std::fs::create_dir_all("skills/c/other/z/scripts").unwrap();
+
+        let mut dirs = expand_script_dirs(&["skills/*/nested/*/scripts"]);
+        dirs.sort();
+        assert_eq!(dirs.len(), 2);
+        assert!(dirs[0].ends_with("skills/a/nested/x/scripts"));
+        assert!(dirs[1].ends_with("skills/b/nested/y/scripts"));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_expand_script_dirs_glob_nonexistent_prefix() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        let dirs = expand_script_dirs(&["nonexistent/*/scripts"]);
         assert!(dirs.is_empty());
     }
 
