@@ -36,7 +36,7 @@ fn main() {
             "--list-scripts" => {
                 list_scripts = true;
             }
-            flag if flag.starts_with("--") => {
+            flag if flag.starts_with('-') => {
                 eprintln!("Unknown flag: {arg}");
                 eprintln!("Usage: claude-lint [--help] [--version] [--list-scripts] [PATH]");
                 std::process::exit(2);
