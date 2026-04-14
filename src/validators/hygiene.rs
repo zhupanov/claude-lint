@@ -686,14 +686,37 @@ pub fn validate_todo_in_agents(diag: &mut DiagnosticCollector, exclude: &Exclude
 
 fn strip_yaml_comments(content: &str) -> String {
     let re_full = Regex::new(r"^[[:space:]]*#").unwrap();
-    let re_trailing = Regex::new(r"[[:space:]]+#.*$").unwrap();
 
     content
         .lines()
         .filter(|line| !re_full.is_match(line))
-        .map(|line| re_trailing.replace(line, "").to_string())
+        .map(strip_trailing_yaml_comment)
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn strip_trailing_yaml_comment(line: &str) -> String {
+    let mut in_quote: Option<char> = None;
+    let chars: Vec<char> = line.chars().collect();
+
+    for i in 0..chars.len() {
+        match in_quote {
+            Some(q) => {
+                if chars[i] == q {
+                    in_quote = None;
+                }
+            }
+            None => {
+                if chars[i] == '"' || chars[i] == '\'' {
+                    in_quote = Some(chars[i]);
+                } else if chars[i] == '#' && i > 0 && chars[i - 1].is_whitespace() {
+                    return line[..i].trim_end().to_string();
+                }
+            }
+        }
+    }
+
+    line.to_string()
 }
 
 fn extract_code_fences(content: &str) -> String {
@@ -726,6 +749,31 @@ mod tests {
         assert!(!result.contains("# comment"));
         assert!(result.contains("key2: val2"));
         assert!(!result.contains("trailing"));
+    }
+
+    #[test]
+    fn test_strip_yaml_comments_preserves_hash_in_double_quotes() {
+        let result = strip_yaml_comments("key: \"value with # hash\"\n");
+        assert!(result.contains("key: \"value with # hash\""));
+    }
+
+    #[test]
+    fn test_strip_yaml_comments_preserves_hash_in_single_quotes() {
+        let result = strip_yaml_comments("key: 'value with # hash'\n");
+        assert!(result.contains("key: 'value with # hash'"));
+    }
+
+    #[test]
+    fn test_strip_yaml_comments_strips_after_closing_quote() {
+        let result = strip_yaml_comments("key: \"quoted\" # comment\n");
+        assert!(result.contains("key: \"quoted\""));
+        assert!(!result.contains("comment"));
+    }
+
+    #[test]
+    fn test_strip_yaml_comments_preserves_unclosed_quote() {
+        let result = strip_yaml_comments("key: \"unterminated # hash\n");
+        assert!(result.contains("key: \"unterminated # hash"));
     }
 
     #[test]
