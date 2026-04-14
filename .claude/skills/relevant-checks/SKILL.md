@@ -48,6 +48,7 @@ The script automatically detects which files were modified on the current branch
 ## Retry semantics
 
 If the script exits non-zero, one or more checks failed. The caller should:
+
 1. Diagnose the failure from the script output
 2. Fix the issue
 3. Re-invoke `/relevant-checks` to confirm the fix
