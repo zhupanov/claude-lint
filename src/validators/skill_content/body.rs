@@ -9,6 +9,8 @@ use super::RE_BACKSLASH_PATH;
 
 const MAX_BODY_LINES: usize = 500;
 const BODY_NO_REFS_THRESHOLD: usize = 300;
+const BODY_NO_WORKFLOW_THRESHOLD: usize = 300;
+const BODY_NO_EXAMPLES_THRESHOLD: usize = 200;
 
 // S037: Body-no-refs
 static RE_BODY_FILE_REF: LazyLock<Regex> = LazyLock::new(|| {
@@ -22,6 +24,22 @@ static RE_YEAR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b20[2-3][0-9]\b
 // S041: Fork-no-task
 static RE_IMPERATIVE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(run|execute|create|build|generate|invoke|call|launch|start|perform|apply|install|deploy|write|implement)\b").unwrap()
+});
+
+// S046: Workflow structure
+static RE_WORKFLOW_STRUCTURE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?m)^\s*(?:\*\*Step \d+|#{2,3} Step\b|- \[[ xX]\]|#{2,3} (?:Workflow|Process|Steps)\b)",
+    )
+    .unwrap()
+});
+
+// S046: Numbered list items (counted separately — need 3+ contiguous)
+static RE_NUMBERED_LIST: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*\d+\.\s").unwrap());
+
+// S047: Example patterns
+static RE_EXAMPLE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^\s*(?:#{2,3} (?:Example|Usage|Template|Format)\b|\*\*(?:Example|Input|Output)(?:\s*\d*)?:\*\*)").unwrap()
 });
 
 // S021: Consecutive bash
@@ -113,6 +131,55 @@ pub(super) fn check_body_content(
                 info.path
             ),
         );
+    }
+
+    // S046: body-no-workflow (plugin-only) + S047: body-no-examples (plugin-only)
+    // Single iteration through lines_outside_fences() when line_count > 200
+    if plugin_mode && line_count > BODY_NO_EXAMPLES_THRESHOLD {
+        let check_workflow = line_count > BODY_NO_WORKFLOW_THRESHOLD;
+        let mut has_workflow = !check_workflow; // skip if below threshold
+        let mut has_examples = false;
+        let mut numbered_count: usize = 0;
+
+        for line in crate::fence::lines_outside_fences(&info.body) {
+            if !has_workflow {
+                if RE_WORKFLOW_STRUCTURE.is_match(line) {
+                    has_workflow = true;
+                } else if RE_NUMBERED_LIST.is_match(line) {
+                    numbered_count += 1;
+                    if numbered_count >= 3 {
+                        has_workflow = true;
+                    }
+                } else if !line.trim().is_empty() {
+                    numbered_count = 0;
+                }
+            }
+            if !has_examples && RE_EXAMPLE_PATTERN.is_match(line) {
+                has_examples = true;
+            }
+            if has_workflow && has_examples {
+                break;
+            }
+        }
+
+        if !has_workflow {
+            diag.report(
+                LintRule::BodyNoWorkflow,
+                &format!(
+                    "{}: body exceeds {} lines ({}) with no workflow structure (steps, checklists, or numbered sequences)",
+                    info.path, BODY_NO_WORKFLOW_THRESHOLD, line_count
+                ),
+            );
+        }
+        if !has_examples {
+            diag.report(
+                LintRule::BodyNoExamples,
+                &format!(
+                    "{}: body exceeds {} lines ({}) with no examples or templates",
+                    info.path, BODY_NO_EXAMPLES_THRESHOLD, line_count
+                ),
+            );
+        }
     }
 }
 
