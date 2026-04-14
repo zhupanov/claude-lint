@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.17] - 2026-04-13
+
+### Fixed
+
+- Extracted shared `CodeFenceTracker` replacing fragile `in_fence = !in_fence` toggle in G006, G007, D003, S021, S022, S028, S038
+- Code fence tracking now properly handles nested fences (4+ backtick/tilde counts), mixed fence types, and closing-fence validation per CommonMark spec
+- S028 (`$ARGUMENTS` without `argument-hint`) now only checks outside code fences, fixing false positives from code examples
+
 ## [1.0.16] - 2026-04-13
 
 ### Fixed
