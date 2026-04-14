@@ -22,6 +22,8 @@ pub struct SkillInfo {
     pub fm_lines: Vec<String>,
     /// Body content after the frontmatter closing delimiter.
     pub body: String,
+    /// Whether the skill directory contains a non-empty `scripts/` subdirectory.
+    pub has_scripts_dir: bool,
 }
 
 /// Walk a skills directory and collect SkillInfo for each valid skill.
@@ -50,11 +52,18 @@ pub fn collect_skills(base_dir: &str, exclude: &ExcludeSet) -> Vec<SkillInfo> {
         let body = frontmatter::extract_body(&content).to_string();
         let skill_path = format!("{base_dir}/{dir_name}/SKILL.md");
 
+        let scripts_dir = path.join("scripts");
+        let has_scripts_dir = scripts_dir.is_dir()
+            && fs::read_dir(&scripts_dir)
+                .ok()
+                .is_some_and(|mut e| matches!(e.next(), Some(Ok(_))));
+
         skills.push(SkillInfo {
             path: skill_path,
             dir_name,
             fm_lines,
             body,
+            has_scripts_dir,
         });
     }
     skills
