@@ -76,7 +76,8 @@ pub(super) fn check_frontmatter_extended(info: &SkillInfo, diag: &mut Diagnostic
     if frontmatter::field_exists(&info.fm_lines, "allowed-tools")
         && frontmatter::get_field(&info.fm_lines, "allowed-tools").is_none()
     {
-        // Check for actual YAML list items (indented "- " lines after the key)
+        // Check for actual YAML list items ("- " lines after the key, possibly unindented or
+        // separated by blank lines)
         let has_list_items = info
             .fm_lines
             .iter()
@@ -84,7 +85,12 @@ pub(super) fn check_frontmatter_extended(info: &SkillInfo, diag: &mut Diagnostic
             .is_some_and(|i| {
                 info.fm_lines[i + 1..]
                     .iter()
-                    .take_while(|l| l.starts_with(' ') || l.starts_with('\t'))
+                    .take_while(|l| {
+                        l.is_empty()
+                            || l.starts_with(' ')
+                            || l.starts_with('\t')
+                            || l.starts_with("- ")
+                    })
                     .any(|l| l.trim_start().starts_with("- "))
             });
         if has_list_items {

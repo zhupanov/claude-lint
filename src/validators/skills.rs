@@ -220,7 +220,12 @@ fn validate_skill_frontmatter_in_dir(
                             .is_some_and(|i| {
                                 fm_lines[i + 1..]
                                     .iter()
-                                    .take_while(|l| l.starts_with(' ') || l.starts_with('\t'))
+                                    .take_while(|l| {
+                                        l.is_empty()
+                                            || l.starts_with(' ')
+                                            || l.starts_with('\t')
+                                            || l.starts_with("- ")
+                                    })
                                     .any(|l| l.trim_start().starts_with("- "))
                             });
                         if has_list_items {
