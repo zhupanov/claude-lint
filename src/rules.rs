@@ -132,8 +132,8 @@ pub enum LintRule {
     DmiEmptyDesc,
     /// S043: Windows-style backslash paths in frontmatter fields
     FrontmatterBackslash,
-    /// S044: backtick-quoted MCP tool reference without ServerName: prefix
-    McpToolUnqualified,
+    /// S044: allowed-tools uses YAML list syntax instead of comma-separated scalar
+    ToolsListSyntax,
 
     // ── Agents (A) ────────────────────────────────────────────────
     /// A001: agents/ directory is missing
@@ -271,7 +271,7 @@ impl LintRule {
             Self::ForkNoTask => "S041",
             Self::DmiEmptyDesc => "S042",
             Self::FrontmatterBackslash => "S043",
-            Self::McpToolUnqualified => "S044",
+            Self::ToolsListSyntax => "S044",
 
             Self::AgentsDirMissing => "A001",
             Self::AgentFrontmatterMalformed => "A002",
@@ -375,7 +375,7 @@ impl LintRule {
             Self::ForkNoTask => "fork-no-task",
             Self::DmiEmptyDesc => "dmi-empty-desc",
             Self::FrontmatterBackslash => "frontmatter-backslash",
-            Self::McpToolUnqualified => "mcp-tool-unqualified",
+            Self::ToolsListSyntax => "tools-list-syntax",
 
             Self::AgentsDirMissing => "agents-dir-missing",
             Self::AgentFrontmatterMalformed => "agent-frontmatter-malformed",
@@ -486,7 +486,7 @@ pub const ALL_RULES: &[LintRule] = &[
     LintRule::ForkNoTask,
     LintRule::DmiEmptyDesc,
     LintRule::FrontmatterBackslash,
-    LintRule::McpToolUnqualified,
+    LintRule::ToolsListSyntax,
     LintRule::AgentsDirMissing,
     LintRule::AgentFrontmatterMalformed,
     LintRule::AgentFieldMissing,

@@ -96,7 +96,7 @@ Either form can be used in `claude-lint.toml` to ignore or downgrade a rule.
 | S026 | `shell-field-invalid` | `shell` field must be `bash`/`powershell` (if present) | Both |
 | S027 | `skill-unreachable` | Skill unreachable: `disable-model-invocation: true` AND `user-invocable: false` | Both |
 
-### Extended Frontmatter (S035, S039--S040, S042--S043)
+### Extended Frontmatter (S035, S039--S040, S042--S044)
 
 | Code | Name | Description | Mode |
 |------|------|-------------|------|
@@ -105,6 +105,7 @@ Either form can be used in `claude-lint.toml` to ignore or downgrade a rule.
 | S040 | `tools-unknown` | `allowed-tools` lists unrecognized tool name | Both |
 | S042 | `dmi-empty-desc` | `disable-model-invocation: true` with empty/missing description | Both |
 | S043 | `frontmatter-backslash` | Windows-style backslash paths in frontmatter fields | Both |
+| S044 | `tools-list-syntax` | `allowed-tools` uses YAML list syntax instead of comma-separated scalar | Both |
 
 ### Cross-Field and Structural (S028--S032, S036)
 

@@ -1326,6 +1326,7 @@ mod tests {
             ("S041", "fork-no-task"),
             ("S042", "dmi-empty-desc"),
             ("S043", "frontmatter-backslash"),
+            ("S044", "tools-list-syntax"),
         ];
         for (code, name) in &new_rules {
             assert!(
@@ -2065,6 +2066,116 @@ mod tests {
                 .errors()
                 .iter()
                 .any(|e| e.contains("first/second person") && e.contains(".claude"))
+        );
+    }
+
+    // ── S044: tools-list-syntax ────────────────────────────────────
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s044_yaml_list_triggers() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\nallowed-tools:\n  - Bash\n  - Read\n---\nBody content\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            diag.errors().iter().any(|e| e.contains("list syntax")),
+            "Expected S044 diagnostic about list syntax, got: {:?}",
+            diag.errors()
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s044_scalar_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\nallowed-tools: Bash, Read\n---\nBody content\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag.errors().iter().any(|e| e.contains("list syntax")),
+            "Unexpected S044 diagnostic for scalar allowed-tools: {:?}",
+            diag.errors()
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s044_absent_no_diagnostic() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\n---\nBody content\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag.errors().iter().any(|e| e.contains("list syntax")),
+            "Unexpected S044 diagnostic when allowed-tools absent: {:?}",
+            diag.errors()
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s044_no_double_report_with_s007() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A valid skill description here\nallowed-tools:\n  - Bash\n  - Read\n---\nBody content\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        // Run both validators (skills frontmatter + content) like the full pipeline would
+        crate::validators::skills::validate_skill_frontmatter(
+            &mut diag,
+            &crate::config::ExcludeSet::default(),
+        );
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        // S044 should fire exactly once
+        let s044_count = diag
+            .errors()
+            .iter()
+            .filter(|e| e.contains("list syntax"))
+            .count();
+        assert_eq!(
+            s044_count,
+            1,
+            "Expected exactly 1 S044 diagnostic, got {s044_count}: {:?}",
+            diag.errors()
+        );
+        // S007 should NOT fire for allowed-tools (suppressed in favor of S044)
+        let s007_allowed_tools = diag
+            .errors()
+            .iter()
+            .filter(|e| e.contains("allowed-tools") && e.contains("present but empty"))
+            .count();
+        assert_eq!(
+            s007_allowed_tools,
+            0,
+            "S007 should not fire for allowed-tools when S044 applies, got: {:?}",
+            diag.errors()
         );
     }
 
