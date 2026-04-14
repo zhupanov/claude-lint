@@ -72,6 +72,38 @@ pub(super) fn check_frontmatter_extended(info: &SkillInfo, diag: &mut Diagnostic
         }
     }
 
+    // S044: allowed-tools uses YAML list syntax
+    if frontmatter::field_exists(&info.fm_lines, "allowed-tools")
+        && frontmatter::get_field(&info.fm_lines, "allowed-tools").is_none()
+    {
+        // Check for actual YAML list items ("- " lines after the key, possibly unindented or
+        // separated by blank lines)
+        let has_list_items = info
+            .fm_lines
+            .iter()
+            .position(|l| l.starts_with("allowed-tools:"))
+            .is_some_and(|i| {
+                info.fm_lines[i + 1..]
+                    .iter()
+                    .take_while(|l| {
+                        l.is_empty()
+                            || l.starts_with(' ')
+                            || l.starts_with('\t')
+                            || l.starts_with("- ")
+                    })
+                    .any(|l| l.trim_start().starts_with("- "))
+            });
+        if has_list_items {
+            diag.report(
+                LintRule::ToolsListSyntax,
+                &format!(
+                    "{}: 'allowed-tools' uses YAML list syntax; use comma-separated scalar instead (e.g., allowed-tools: Bash, Read, Write)",
+                    info.path
+                ),
+            );
+        }
+    }
+
     // S040: allowed-tools unknown
     if let Some(tools_str) = frontmatter::get_field(&info.fm_lines, "allowed-tools") {
         let known_tools = [
