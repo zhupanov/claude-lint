@@ -2250,4 +2250,31 @@ mod tests {
             diag.errors()
         );
     }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s044_dedup_same_tool_fires_once() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: A skill\n---\nUse the `create_issue` tool.\nCall `create_issue` again.\n",
+        )
+        .unwrap();
+
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert_eq!(
+            diag.errors()
+                .iter()
+                .filter(|e| e.contains("create_issue") && e.contains("MCP tool reference"))
+                .count(),
+            1,
+            "Expected exactly one S044 diagnostic for duplicate tool, got: {:?}",
+            diag.errors()
+        );
+    }
 }

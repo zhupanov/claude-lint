@@ -11,7 +11,7 @@ static RE_BACKTICK_SNAKE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)`").unwrap());
 
 // Context words that suggest a tool invocation (case-insensitive check).
-const CONTEXT_WORDS: &[&str] = &["use", "call", "invoke", "run", "execute", "tool", "the"];
+const CONTEXT_WORDS: &[&str] = &["use", "call", "invoke", "run", "execute", "tool"];
 
 // Built-in platform tools in snake_case form. Single-word tools (bash, read,
 // etc.) are excluded automatically by the regex's underscore requirement.
@@ -53,13 +53,8 @@ pub(super) fn check_mcp_tool_refs(info: &SkillInfo, diag: &mut DiagnosticCollect
 
         for cap in RE_BACKTICK_SNAKE.captures_iter(line) {
             let identifier = &cap[1];
-
-            // Skip if already qualified (contains colon within backticks)
-            // e.g., `BigQuery:bigquery_schema`
-            let full_match = &cap[0];
-            if full_match.contains(':') {
-                continue;
-            }
+            // Note: colon-qualified forms like `BigQuery:bigquery_schema` are already
+            // excluded by the regex — neither `:` nor uppercase letters are in [a-z0-9_].
 
             // Skip built-in platform tools
             if BUILTIN_TOOLS_SNAKE.contains(&identifier) {
