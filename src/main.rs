@@ -19,19 +19,36 @@ fn main() {
     let mut list_scripts = false;
     let mut positional = Vec::new();
     for arg in &args[1..] {
-        if arg == "--list-scripts" {
-            list_scripts = true;
-        } else if arg.starts_with("--") {
-            eprintln!("Unknown flag: {arg}");
-            eprintln!("Usage: claude-lint [--list-scripts] [PATH]");
-            std::process::exit(2);
-        } else {
-            positional.push(arg.as_str());
+        match arg.as_str() {
+            "--help" | "-h" => {
+                println!("Usage: claude-lint [OPTIONS] [PATH]");
+                println!();
+                println!("Options:");
+                println!("  --help, -h         Print this help message");
+                println!("  --version          Print version information");
+                println!("  --list-scripts     List discovered script paths and exit");
+                std::process::exit(0);
+            }
+            "--version" => {
+                println!("claude-lint {}", env!("CARGO_PKG_VERSION"));
+                std::process::exit(0);
+            }
+            "--list-scripts" => {
+                list_scripts = true;
+            }
+            flag if flag.starts_with('-') => {
+                eprintln!("Unknown flag: {arg}");
+                eprintln!("Usage: claude-lint [--help] [--version] [--list-scripts] [PATH]");
+                std::process::exit(2);
+            }
+            _ => {
+                positional.push(arg.as_str());
+            }
         }
     }
 
     if positional.len() > 1 {
-        eprintln!("Usage: claude-lint [--list-scripts] [PATH]");
+        eprintln!("Usage: claude-lint [--help] [--version] [--list-scripts] [PATH]");
         std::process::exit(2);
     }
 
@@ -134,18 +151,22 @@ fn detect_mode() -> Option<LintMode> {
 fn resolve_repo_root(target: &str) -> Result<String, String> {
     let output = std::process::Command::new("git")
         .args(["-C", target, "rev-parse", "--show-toplevel"])
-        .output()
-        .map_err(|e| format!("failed to run git: {e}"))?;
+        .output();
 
-    if !output.status.success() {
-        return Err("not inside a git repository".to_string());
+    if let Ok(output) = output {
+        if output.status.success() {
+            let root = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !root.is_empty() {
+                return Ok(root);
+            }
+        }
     }
 
-    let root = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if root.is_empty() {
-        return Err("git rev-parse returned empty path".to_string());
-    }
-    Ok(root)
+    // Git unavailable or not a git repo — fall back to the target directory.
+    eprintln!("warning: not a git repository, using target directory as root");
+    std::fs::canonicalize(target)
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| format!("cannot resolve path '{target}': {e}"))
 }
 
 #[cfg(test)]
@@ -212,11 +233,14 @@ mod tests {
     }
 
     #[test]
-    fn resolve_repo_root_non_git_dir() {
+    fn resolve_repo_root_non_git_dir_falls_back_to_target() {
         let tmp = tempfile::tempdir().unwrap();
         let result = resolve_repo_root(tmp.path().to_str().unwrap());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("not inside a git repository"));
+        assert!(result.is_ok());
+        let root = result.unwrap();
+        // The returned path should be the canonicalized temp dir.
+        let expected = tmp.path().canonicalize().unwrap();
+        assert_eq!(root, expected.to_string_lossy());
     }
 
     #[test]
@@ -225,6 +249,6 @@ mod tests {
         let nonexistent = tmp.path().join("does-not-exist");
         let result = resolve_repo_root(nonexistent.to_str().unwrap());
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("not inside a git repository"));
+        assert!(result.unwrap_err().contains("cannot resolve path"));
     }
 }
