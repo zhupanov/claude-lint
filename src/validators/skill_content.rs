@@ -704,7 +704,7 @@ fn shared_ref_regex(base_dir: &str) -> Regex {
 }
 
 /// S029: Check for deeply nested shared markdown references.
-/// Only follows canonical ${CLAUDE_PLUGIN_ROOT}/skills/shared/*.md syntax.
+/// Matches `${CLAUDE_PLUGIN_ROOT}/<base_dir>/shared/*.md` references.
 fn validate_nested_references(
     base_dir: &str,
     diag: &mut DiagnosticCollector,
@@ -1760,6 +1760,8 @@ mod tests {
         assert!(!re2.is_match("${CLAUDE_PLUGIN_ROOT}/skills/shared/helpers.md"));
     }
 
+    #[test]
+    #[serial_test::serial]
     fn test_s029_nested_reference_fires() {
         let tmp = tempfile::tempdir().unwrap();
         let _guard = crate::test_helpers::CwdGuard::new();
