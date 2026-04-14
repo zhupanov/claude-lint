@@ -801,8 +801,7 @@ mod tests {
 
     #[test]
     fn test_strip_yaml_comments_escaped_double_quote() {
-        let result =
-            strip_yaml_comments("key: \"say \\\"hello\\\" # still in\" # comment\n");
+        let result = strip_yaml_comments("key: \"say \\\"hello\\\" # still in\" # comment\n");
         assert!(result.contains("# still in"));
         assert!(!result.contains("# comment"));
     }
