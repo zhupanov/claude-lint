@@ -1131,6 +1131,68 @@ mod tests {
         assert!(diag.errors()[0].contains("dead script"));
     }
 
+    #[test]
+    #[serial_test::serial]
+    fn test_v11_script_referenced_in_hooks_json_not_dead() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir_all("scripts").unwrap();
+        std::fs::write("scripts/referenced.sh", "#!/bin/bash\n").unwrap();
+
+        // Script referenced via ${CLAUDE_PLUGIN_ROOT}/scripts/referenced.sh in hooks.json
+        let hooks_val = serde_json::json!({
+            "hooks": [{"command": "${CLAUDE_PLUGIN_ROOT}/scripts/referenced.sh"}]
+        });
+        let ctx = crate::context::LintContext {
+            base_path: tmp.path().to_path_buf(),
+            mode: crate::context::LintMode::Plugin,
+            plugin_json: crate::context::ManifestState::Missing,
+            marketplace_json: crate::context::ManifestState::Missing,
+            hooks_json: crate::context::ManifestState::Parsed(hooks_val),
+            settings_json: crate::context::ManifestState::Missing,
+        };
+        let mut diag = DiagnosticCollector::new();
+        validate_dead_scripts(&ctx, &mut diag, &crate::config::ExcludeSet::default());
+        assert_eq!(
+            diag.error_count(),
+            0,
+            "Script referenced in hooks.json should not be reported as dead"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_v11_script_referenced_in_settings_json_not_dead() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        std::fs::create_dir_all("scripts").unwrap();
+        std::fs::write("scripts/setup.sh", "#!/bin/bash\n").unwrap();
+
+        // Script referenced via bare scripts/setup.sh in settings.json (re_d pattern)
+        let settings_val = serde_json::json!({
+            "permissions": {"allow": ["scripts/setup.sh"]}
+        });
+        let ctx = crate::context::LintContext {
+            base_path: tmp.path().to_path_buf(),
+            mode: crate::context::LintMode::Plugin,
+            plugin_json: crate::context::ManifestState::Missing,
+            marketplace_json: crate::context::ManifestState::Missing,
+            hooks_json: crate::context::ManifestState::Missing,
+            settings_json: crate::context::ManifestState::Parsed(settings_val),
+        };
+        let mut diag = DiagnosticCollector::new();
+        validate_dead_scripts(&ctx, &mut diag, &crate::config::ExcludeSet::default());
+        assert_eq!(
+            diag.error_count(),
+            0,
+            "Script referenced in settings.json should not be reported as dead"
+        );
+    }
+
     // expand_script_dirs tests
     #[test]
     #[serial_test::serial]
