@@ -15,18 +15,23 @@ The classifier inspects the diff between the branch and main. Since this repo cu
 Severity hierarchy: **MAJOR > MINOR > PATCH** (highest wins).
 
 ### MAJOR — backward-incompatible changes
+
 Any of the following in the designated public surface:
+
 - A deleted public-facing file
 - A renamed public-facing file (git status `R`)
 - A changed `name:` frontmatter field in an existing SKILL.md
 - A `--<flag>` token removed from a SKILL.md's `argument-hint:` frontmatter field
 
 ### MINOR — backward-compatible additions
+
 Any of the following in the designated public surface (only if not MAJOR):
+
 - A newly added public-facing file
 - A `--<flag>` token added to a SKILL.md's `argument-hint:` frontmatter field
 
 ### PATCH — everything else
+
 Default for all other changes. Every PR must bump at least PATCH per policy.
 
 ## Caveat — escalation-only clause
@@ -82,5 +87,6 @@ $PWD/.claude/skills/bump-version/scripts/apply-bump.sh --new-version <NEW_VERSIO
 The reasoning log at `${IMPLEMENT_TMPDIR:-$(mktemp -d)}/bump-version-reasoning.md` may be embedded into the PR body for documentation purposes.
 
 ## Exit codes
+
 - `classify-bump.sh` — 0 on success (including `BUMP_TYPE=NONE`), non-zero on parse/validation failure
 - `apply-bump.sh` — 0 on successful commit, non-zero on dirty worktree or commit failure (rollback performed)
