@@ -19,7 +19,7 @@ pub(super) static RE_BACKSLASH_PATH: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"[A-Za-z]:\\[A-Za-z]|\\[A-Za-z][A-Za-z0-9_-]*\\[A-Za-z]").unwrap()
 });
 
-/// Validate skill content for public skills (skills/). Runs all S009-S055 rules.
+/// Validate skill content for public skills (skills/). Runs all S009-S056 rules.
 pub fn validate_skill_content(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let skills = collect_skills("skills", exclude);
     for info in &skills {
@@ -33,7 +33,7 @@ pub fn validate_skill_content(diag: &mut DiagnosticCollector, exclude: &ExcludeS
 }
 
 /// Validate skill content for private skills (.claude/skills/).
-/// Runs only "both-mode" rules (excludes S015, S016, S017, S029, S033, S036, S037, S038, S046, S047, S049, S050, S051, S052, S053, S054, S055).
+/// Runs only "both-mode" rules (excludes S015, S016, S017, S029, S033, S036, S037, S038, S046, S047, S049, S050, S051, S052, S053, S054, S055, S056).
 pub fn validate_private_skill_content(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let skills = collect_skills(".claude/skills", exclude);
     for info in &skills {
@@ -1296,7 +1296,7 @@ mod tests {
     #[test]
     fn test_new_rules_lookup_by_code_and_name() {
         use crate::rules::LintRule;
-        // Verify S009-S054 rules round-trip via code and name lookups
+        // Verify S009-S056 rules round-trip via code and name lookups
         let new_rules = [
             ("S009", "name-too-long"),
             ("S010", "name-invalid-chars"),
@@ -1345,6 +1345,7 @@ mod tests {
             ("S053", "terminology-inconsistent"),
             ("S054", "desc-body-misalign"),
             ("S055", "script-errhand-missing"),
+            ("S056", "body-no-default"),
         ];
         for (code, name) in &new_rules {
             assert!(
@@ -3954,6 +3955,258 @@ mod tests {
         assert!(
             errhand_errors[0].contains("bad.sh"),
             "S055 should fire for bad.sh, not good.sh"
+        );
+    }
+
+    // ── S056: body-no-default ───────────────────────────────────────
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s056_unframed_alternatives() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\nYou can use pypdf, or pdfplumber, or PyMuPDF to extract text.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("alternatives without stating a default")),
+            "S056 should fire for unframed alternatives"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s056_comma_list_alternatives() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\nYou can use pypdf, pdfplumber, or PyMuPDF to extract text.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("alternatives without stating a default")),
+            "S056 should fire for comma-list alternatives"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s056_conditional_framing_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\nIf you need text extraction, use pdfplumber or pypdf or PyMuPDF.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("alternatives without stating a default")),
+            "S056 should NOT fire when line starts with 'If'"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s056_default_stated_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\nWe recommend pdfplumber, pypdf, or PyMuPDF for text extraction.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("alternatives without stating a default")),
+            "S056 should NOT fire when 'recommend' is present"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s056_binary_choice_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\nUse pdfplumber or PyMuPDF for extraction.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("alternatives without stating a default")),
+            "S056 should NOT fire for binary choice (only one 'or')"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s056_inside_code_fence_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\n```\nYou can use pypdf, or pdfplumber, or PyMuPDF to extract text.\n```\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("alternatives without stating a default")),
+            "S056 should NOT fire inside code fences"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s056_private_mode_skips() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all(".claude/skills/my-skill").unwrap();
+        std::fs::write(
+            ".claude/skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\nYou can use pypdf, or pdfplumber, or PyMuPDF to extract text.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_private_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("alternatives without stating a default")),
+            "S056 should NOT fire in private mode"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s056_when_framing_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\nWhen processing files, use tool A or tool B or tool C.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("alternatives without stating a default")),
+            "S056 should NOT fire when line starts with 'When'"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s056_default_keyword_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\nUse tool A or tool B or tool C; tool A is the default.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("alternatives without stating a default")),
+            "S056 should NOT fire when 'default' keyword is present"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s056_prefer_keyword_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\nPrefer tool A over tool B or tool C for most cases.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("alternatives without stating a default")),
+            "S056 should NOT fire when 'Prefer' keyword is present"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s056_midline_if_still_fires() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need a skill for testing purposes\n---\nUse tool A or tool B or tool C if you need more speed.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("alternatives without stating a default")),
+            "S056 should fire when 'if' is mid-line (not at start)"
         );
     }
 }

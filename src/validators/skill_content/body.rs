@@ -88,6 +88,20 @@ static RE_SH_ERROR_HANDLING: LazyLock<Regex> = LazyLock::new(|| {
 
 const SCRIPT_MIN_LINES: usize = 5;
 
+// S056: Or-chain detection — 3+ alternatives via comma-list-with-or or 2+ bare "or" occurrences
+static RE_OR_CHAIN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)(?:\w[\w `'-]*,\s*\w[\w `'-]*(?:,\s*\w[\w `'-]*)*,?\s+or\s+\w|(?:.*\bor\b){2})",
+    )
+    .unwrap()
+});
+
+// S056: Suppress when line has conditional framing or recommendation keywords
+static RE_ALTERNATIVES_SUPPRESS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(?:^\s*(?:if|when)\b|\b(?:prefer|recommend(?:ed)?|by default|default)\b)")
+        .unwrap()
+});
+
 // S021: Consecutive bash
 static RE_BASH_FENCE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^```(bash|sh|shell)\s*$").unwrap());
@@ -259,6 +273,24 @@ pub(super) fn check_body_content(
 
         // S055: check actual script files for error handling patterns
         check_script_error_handling(info, diag, exclude);
+    }
+
+    // S056: body-no-default (plugin-only) — alternatives without stated default
+    if plugin_mode {
+        for line in crate::fence::lines_outside_fences(&info.body) {
+            if RE_OR_CHAIN.is_match(line) && !RE_ALTERNATIVES_SUPPRESS.is_match(line) {
+                diag.report(
+                    LintRule::BodyNoDefault,
+                    &format!(
+                        "{}: body lists multiple alternatives without stating a default; \
+                         pick a recommended option or add conditional context \
+                         (to downgrade, add body-no-default to [lint] warn in claude-lint.toml)",
+                        info.path
+                    ),
+                );
+                break; // Report once per file
+            }
+        }
     }
 }
 
