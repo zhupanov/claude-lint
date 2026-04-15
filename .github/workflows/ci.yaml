@@ -96,9 +96,20 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: zhupanov/agent-lint@v2
+      - name: Agent Lint (default)
+        uses: zhupanov/agent-lint@v2
         with:
           path: "."
+      - name: Agent Lint (pedantic)
+        uses: zhupanov/agent-lint@v2
+        with:
+          path: "."
+          pedantic: "true"
+      - name: Agent Lint (all)
+        uses: zhupanov/agent-lint@v2
+        with:
+          path: "."
+          all: "true"
 
   musl-build:
     runs-on: ubuntu-latest
