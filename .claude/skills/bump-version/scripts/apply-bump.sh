@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# apply-bump.sh — Apply a computed semver bump to package.json and Cargo.toml.
+# apply-bump.sh — Apply a computed semver bump to package.json, Cargo.toml, and README.md.
 #
 # Contract:
 #   - FIRST: verify working tree is clean (fails on any staged or unstaged changes).
@@ -7,6 +7,7 @@
 #   - Back up package.json and Cargo.toml (to git directory to avoid triggering dirty-tree guard on retry).
 #   - Rewrite .version field in package.json atomically via jq + mv.
 #   - Rewrite version field in Cargo.toml [package] section atomically via awk + mv.
+#   - Replace all occurrences of old version (X.Y.Z) with new version in README.md.
 #   - git add + commit with message "Bump version to <new-version>".
 #   - Roll back from backup if git commit fails.
 #
@@ -135,8 +136,22 @@ if [[ -f "$CARGO_TOML" ]]; then
   fi
 fi
 
+# Step 4d: Update explicit version numbers in README.md.
+README_FILE="$PWD/README.md"
+if [[ -f "$README_FILE" ]]; then
+  OLD_VERSION=$(jq -r '.version' "$BACKUP")
+  if [[ -n "$OLD_VERSION" && "$OLD_VERSION" != "$NEW_VERSION" ]]; then
+    TMP_README="$README_FILE.tmp.$$"
+    sed "s/$OLD_VERSION/$NEW_VERSION/g" "$README_FILE" > "$TMP_README"
+    mv "$TMP_README" "$README_FILE"
+  fi
+fi
+
 # Step 5: Stage and commit.
 git add "$VERSION_FILE"
+if [[ -f "$README_FILE" ]]; then
+  git add "$README_FILE"
+fi
 if [[ -f "$CARGO_TOML" ]]; then
   git add "$CARGO_TOML"
   if [[ -f "$CARGO_LOCK" ]]; then

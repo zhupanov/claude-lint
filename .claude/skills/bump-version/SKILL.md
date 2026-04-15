@@ -60,7 +60,8 @@ If you escalate, append a paragraph to the reasoning log file explaining why.
    - Rewrites `package.json` `.version` field via `jq` (atomic via tmp + mv)
    - Rewrites `Cargo.toml` `[package]` version via `awk` (atomic via tmp + mv)
    - Regenerates `Cargo.lock` via `cargo generate-lockfile` to reflect the new version
-   - `git add` (package.json, Cargo.toml, Cargo.lock) + `git commit -m "Bump version to <NEW_VERSION>"`
+   - Replaces all occurrences of the old version (X.Y.Z) with the new version in `README.md` (so pinned version examples stay current)
+   - `git add` (package.json, Cargo.toml, Cargo.lock, README.md) + `git commit -m "Bump version to <NEW_VERSION>"`
    - Rolls back all three files from backup on commit failure
 5. If `BUMP_TYPE=NONE`, skip the apply step and report "already bumped".
 

@@ -73,7 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - **BREAKING**: Renamed project from `claude-lint` to `agent-lint`: binary, config file (`agent-lint.toml`),
-  GitHub Action (`zhupanov/agent-lint@v1`), Marketplace listing, and all documentation updated
+  GitHub Action (`zhupanov/agent-lint@v2`), Marketplace listing, and all documentation updated
 - Legacy `claude-lint.toml` files are detected with a warning to rename
 
 ### Fixed
