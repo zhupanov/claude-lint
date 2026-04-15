@@ -221,7 +221,7 @@ fn validate_skill_frontmatter_in_dir(
             if field_present {
                 let val = frontmatter::get_field(&fm_lines, field);
                 if val.is_none() {
-                    // For allowed-tools: suppress S007 if YAML list items follow (S044 handles that case)
+                    // For allowed-tools: suppress S007 if YAML list items follow (S045 handles that case)
                     if *field == "allowed-tools" {
                         let has_list_items = fm_lines
                             .iter()
@@ -238,7 +238,7 @@ fn validate_skill_frontmatter_in_dir(
                                     .any(|l| l.trim_start().starts_with("- "))
                             });
                         if has_list_items {
-                            continue; // S044 in frontmatter_extended.rs handles this
+                            continue; // S045 in frontmatter_extended.rs handles this
                         }
                     }
                     diag.report(
