@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.3.2] - 2026-04-15
+
+### Added
+
+- Added `COMPETITOR-FEATURES.md` with competitive feature gap analysis: 26 features agent-lint lacks, 8 with inferior implementation
+
 ## [2.3.1] - 2026-04-15
 
 ### Changed
