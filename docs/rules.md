@@ -9,6 +9,12 @@ Either form can be used in `agent-lint.toml` to configure rule severity.
 - **error** -- rule fires as an error by default
 - **off** -- rule is silently skipped by default (enable via `[lint] error`)
 
+**Strictness modes** (`--pedantic` / `--all`) override these defaults.
+`--pedantic` promotes `warn`-listed rules to errors (except
+`name-too-long`, `desc-too-long`, `body-too-long`, `compat-too-long`).
+`--all` forces every rule to error regardless of config. See README for
+details.
+
 **Mode column key:**
 
 - **Plugin** -- runs only when `.claude-plugin/` is present

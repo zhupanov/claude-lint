@@ -1,8 +1,21 @@
-use crate::rules::LintRule;
+use crate::rules::{ALL_RULES, LintRule};
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::Path;
+
+/// CLI strictness mode. Applied as a one-shot transformation to LintConfig
+/// before creating DiagnosticCollector. Not configurable via TOML.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CliMode {
+    #[default]
+    Normal,
+    /// Promotes warn-listed rules to errors (except too-long rules).
+    /// Respects ignore list. Default-suppressed rules stay suppressed.
+    Pedantic,
+    /// All 104 rules fire as errors. Ignores all TOML severity config.
+    All,
+}
 
 /// Raw TOML structure for deserialization.
 #[derive(Deserialize, Default)]
@@ -162,6 +175,40 @@ impl LintConfig {
             warn,
             exclude: section.exclude,
         })
+    }
+
+    /// Apply CLI strictness mode. Transforms the ignore/error/warn sets
+    /// so that `DiagnosticCollector::report()` needs no changes.
+    ///
+    /// - `Pedantic`: moves warn entries to error (except too-long rules).
+    ///   Respects ignore list. Default-suppressed rules stay suppressed.
+    /// - `All`: clears ignore/warn, fills error with all rules. Overrides
+    ///   all TOML severity config. File exclusions (`exclude`) are not
+    ///   affected — `--all` changes rule severity, not file selection.
+    pub fn apply_cli_mode(&mut self, mode: CliMode) {
+        match mode {
+            CliMode::Normal => {}
+            CliMode::Pedantic => {
+                let to_promote: Vec<_> = self
+                    .warn
+                    .iter()
+                    .filter(|r| !r.is_too_long())
+                    .copied()
+                    .collect();
+                for r in to_promote {
+                    self.warn.remove(&r);
+                    self.error.insert(r);
+                }
+            }
+            CliMode::All => {
+                self.ignore.clear();
+                self.warn.clear();
+                self.error.clear();
+                for r in ALL_RULES {
+                    self.error.insert(*r);
+                }
+            }
+        }
     }
 
     /// Build a compiled `ExcludeSet` from this config's exclude patterns.
@@ -582,5 +629,125 @@ mod tests {
             normalize_path(".\\skills/foo\\SKILL.md"),
             "skills/foo/SKILL.md"
         );
+    }
+
+    // ── apply_cli_mode ─────────────────────────────────────────────
+
+    #[test]
+    fn apply_normal_no_change() {
+        let mut config = LintConfig {
+            ignore: HashSet::from([LintRule::PluginJsonMissing]),
+            error: HashSet::from([LintRule::NameVague]),
+            warn: HashSet::from([LintRule::SecurityMdMissing]),
+            exclude: vec![],
+        };
+        config.apply_cli_mode(CliMode::Normal);
+        assert!(config.ignore.contains(&LintRule::PluginJsonMissing));
+        assert!(config.error.contains(&LintRule::NameVague));
+        assert!(config.warn.contains(&LintRule::SecurityMdMissing));
+    }
+
+    #[test]
+    fn apply_pedantic_moves_warn_to_error() {
+        let mut config = LintConfig {
+            ignore: HashSet::new(),
+            error: HashSet::new(),
+            warn: HashSet::from([LintRule::SecurityMdMissing, LintRule::TodoInSkill]),
+            exclude: vec![],
+        };
+        config.apply_cli_mode(CliMode::Pedantic);
+        assert!(config.error.contains(&LintRule::SecurityMdMissing));
+        assert!(config.error.contains(&LintRule::TodoInSkill));
+        assert!(config.warn.is_empty());
+    }
+
+    #[test]
+    fn apply_pedantic_skips_too_long() {
+        let mut config = LintConfig {
+            ignore: HashSet::new(),
+            error: HashSet::new(),
+            warn: HashSet::from([
+                LintRule::SecurityMdMissing,
+                LintRule::BodyTooLong,
+                LintRule::CompatTooLong,
+            ]),
+            exclude: vec![],
+        };
+        config.apply_cli_mode(CliMode::Pedantic);
+        // Non-too-long rule promoted to error
+        assert!(config.error.contains(&LintRule::SecurityMdMissing));
+        // Too-long rules remain in warn
+        assert!(config.warn.contains(&LintRule::BodyTooLong));
+        assert!(config.warn.contains(&LintRule::CompatTooLong));
+        assert!(!config.error.contains(&LintRule::BodyTooLong));
+        assert!(!config.error.contains(&LintRule::CompatTooLong));
+    }
+
+    #[test]
+    fn apply_pedantic_leaves_ignore_intact() {
+        let mut config = LintConfig {
+            ignore: HashSet::from([LintRule::PluginJsonMissing]),
+            error: HashSet::new(),
+            warn: HashSet::from([LintRule::SecurityMdMissing]),
+            exclude: vec![],
+        };
+        config.apply_cli_mode(CliMode::Pedantic);
+        assert!(config.ignore.contains(&LintRule::PluginJsonMissing));
+        assert!(config.error.contains(&LintRule::SecurityMdMissing));
+    }
+
+    #[test]
+    fn apply_pedantic_default_error_stays_error() {
+        let mut config = LintConfig {
+            ignore: HashSet::new(),
+            error: HashSet::new(),
+            warn: HashSet::new(),
+            exclude: vec![],
+        };
+        config.apply_cli_mode(CliMode::Pedantic);
+        // Default-error rules like PluginJsonMissing aren't in the error set,
+        // but they fire as errors via default_severity() in report().
+        // Pedantic doesn't need to touch them.
+        assert!(config.error.is_empty());
+    }
+
+    #[test]
+    fn apply_all_enables_everything() {
+        let mut config = LintConfig {
+            ignore: HashSet::from([LintRule::PluginJsonMissing]),
+            error: HashSet::new(),
+            warn: HashSet::from([LintRule::SecurityMdMissing]),
+            exclude: vec!["docs/*.md".to_string()],
+        };
+        config.apply_cli_mode(CliMode::All);
+        assert!(config.ignore.is_empty());
+        assert!(config.warn.is_empty());
+        assert_eq!(config.error.len(), 104);
+        // Exclude is NOT cleared — it's about file paths, not rule severity
+        assert_eq!(config.exclude.len(), 1);
+    }
+
+    #[test]
+    fn apply_all_overrides_ignore() {
+        let mut config = LintConfig {
+            ignore: HashSet::from([LintRule::PluginJsonMissing, LintRule::NameVague]),
+            error: HashSet::new(),
+            warn: HashSet::new(),
+            exclude: vec![],
+        };
+        config.apply_cli_mode(CliMode::All);
+        assert!(config.ignore.is_empty());
+        assert!(config.error.contains(&LintRule::PluginJsonMissing));
+        assert!(config.error.contains(&LintRule::NameVague));
+    }
+
+    #[test]
+    fn apply_all_includes_too_long_rules() {
+        let mut config = LintConfig::default();
+        config.apply_cli_mode(CliMode::All);
+        assert!(config.error.contains(&LintRule::NameTooLong));
+        assert!(config.error.contains(&LintRule::DescTooLong));
+        assert!(config.error.contains(&LintRule::BodyTooLong));
+        assert!(config.error.contains(&LintRule::CompatTooLong));
     }
 }

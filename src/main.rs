@@ -8,7 +8,7 @@ mod rules;
 mod test_helpers;
 mod validators;
 
-use config::LintConfig;
+use config::{CliMode, LintConfig};
 use context::{LintContext, LintMode};
 use diagnostic::DiagnosticCollector;
 
@@ -17,6 +17,8 @@ fn main() {
 
     // Partition args[1..] into flags and positional args.
     let mut list_scripts = false;
+    let mut pedantic = false;
+    let mut all = false;
     let mut positional = Vec::new();
     for arg in &args[1..] {
         match arg.as_str() {
@@ -27,6 +29,12 @@ fn main() {
                 println!("  --help, -h         Print this help message");
                 println!("  --version          Print version information");
                 println!("  --list-scripts     List discovered script paths and exit");
+                println!(
+                    "  --pedantic         Promote all enabled rules to errors (except too-long rules)"
+                );
+                println!(
+                    "  --all              Force every rule to error, ignoring config overrides"
+                );
                 std::process::exit(0);
             }
             "--version" => {
@@ -36,9 +44,17 @@ fn main() {
             "--list-scripts" => {
                 list_scripts = true;
             }
+            "--pedantic" => {
+                pedantic = true;
+            }
+            "--all" => {
+                all = true;
+            }
             flag if flag.starts_with('-') => {
                 eprintln!("Unknown flag: {arg}");
-                eprintln!("Usage: agent-lint [--help] [--version] [--list-scripts] [PATH]");
+                eprintln!(
+                    "Usage: agent-lint [--help] [--version] [--list-scripts] [--pedantic] [--all] [PATH]"
+                );
                 std::process::exit(2);
             }
             _ => {
@@ -47,8 +63,23 @@ fn main() {
         }
     }
 
+    if pedantic && all {
+        eprintln!("Cannot use both --pedantic and --all");
+        std::process::exit(2);
+    }
+
+    let cli_mode = if all {
+        CliMode::All
+    } else if pedantic {
+        CliMode::Pedantic
+    } else {
+        CliMode::Normal
+    };
+
     if positional.len() > 1 {
-        eprintln!("Usage: agent-lint [--help] [--version] [--list-scripts] [PATH]");
+        eprintln!(
+            "Usage: agent-lint [--help] [--version] [--list-scripts] [--pedantic] [--all] [PATH]"
+        );
         std::process::exit(2);
     }
 
@@ -83,13 +114,15 @@ fn main() {
 
     // Load configuration AFTER mode detection (so "Nothing to lint" repos
     // are not affected by malformed config files).
-    let lint_config = match LintConfig::load(&repo_root) {
+    let mut lint_config = match LintConfig::load(&repo_root) {
         Ok(cfg) => cfg,
         Err(msg) => {
             eprintln!("ERROR: {msg}");
             std::process::exit(2);
         }
     };
+
+    lint_config.apply_cli_mode(cli_mode);
 
     let exclude = lint_config.build_exclude_set();
 

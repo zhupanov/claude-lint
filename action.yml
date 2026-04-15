@@ -17,6 +17,14 @@ inputs:
     description: "GitHub token for resolving the latest release version. Optional — falls back to github.token automatically."
     required: false
     default: ""
+  pedantic:
+    description: "Enable pedantic mode: promote warn-listed rules to errors (except length-cap rules). Mutually exclusive with 'all'."
+    required: false
+    default: "false"
+  all:
+    description: "Enable all mode: every rule fires as an error, ignoring config overrides. Mutually exclusive with 'pedantic'."
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
@@ -31,4 +39,9 @@ runs:
 
     - name: Run agent-lint
       shell: bash
-      run: agent-lint "${{ inputs.path }}"
+      run: |
+        args=()
+        if [ "${{ inputs.pedantic }}" = "true" ]; then args+=(--pedantic); fi
+        if [ "${{ inputs.all }}" = "true" ]; then args+=(--all); fi
+        args+=("${{ inputs.path }}")
+        agent-lint "${args[@]}"

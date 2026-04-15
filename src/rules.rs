@@ -479,6 +479,15 @@ impl LintRule {
         }
     }
 
+    /// Whether this rule is a "too-long" length-cap rule, excluded from
+    /// pedantic error promotion.
+    pub fn is_too_long(self) -> bool {
+        matches!(
+            self,
+            Self::NameTooLong | Self::DescTooLong | Self::BodyTooLong | Self::CompatTooLong
+        )
+    }
+
     /// Look up a rule by its code (e.g. `"M001"`) or human-readable name
     /// (e.g. `"plugin-json-missing"`).
     pub fn from_code_or_name(s: &str) -> Option<Self> {
@@ -721,6 +730,30 @@ mod tests {
             "Expected 36 default-suppressed rules, got {}",
             suppressed.len()
         );
+    }
+
+    #[test]
+    fn is_too_long_matches_exactly_four() {
+        let too_long: Vec<_> = ALL_RULES.iter().filter(|r| r.is_too_long()).collect();
+        assert_eq!(
+            too_long.len(),
+            4,
+            "Expected 4 too-long rules, got {}",
+            too_long.len()
+        );
+    }
+
+    #[test]
+    fn is_too_long_correct_rules() {
+        assert!(LintRule::NameTooLong.is_too_long());
+        assert!(LintRule::DescTooLong.is_too_long());
+        assert!(LintRule::BodyTooLong.is_too_long());
+        assert!(LintRule::CompatTooLong.is_too_long());
+        // Verify some non-too-long rules
+        assert!(!LintRule::DescTruncated.is_too_long());
+        assert!(!LintRule::AgentDescLong.is_too_long());
+        assert!(!LintRule::ClaudemdTooLarge.is_too_long());
+        assert!(!LintRule::PluginJsonMissing.is_too_long());
     }
 
     #[test]
