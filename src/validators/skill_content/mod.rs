@@ -2885,7 +2885,7 @@ mod tests {
         validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
         assert!(
             diag.errors().iter().any(|e| e.contains("list syntax")),
-            "Expected S044 diagnostic about list syntax, got: {:?}",
+            "Expected S045 diagnostic about list syntax, got: {:?}",
             diag.errors()
         );
     }
@@ -2906,14 +2906,14 @@ mod tests {
         validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
         assert!(
             !diag.errors().iter().any(|e| e.contains("list syntax")),
-            "Unexpected S044 diagnostic for scalar allowed-tools: {:?}",
+            "Unexpected S045 diagnostic for scalar allowed-tools: {:?}",
             diag.errors()
         );
     }
 
     #[test]
     #[serial_test::serial]
-    fn test_s044_absent_no_diagnostic() {
+    fn test_s045_absent_no_diagnostic() {
         let tmp = tempfile::tempdir().unwrap();
         let _guard = crate::test_helpers::CwdGuard::new();
         std::env::set_current_dir(tmp.path()).unwrap();
@@ -2927,14 +2927,14 @@ mod tests {
         validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
         assert!(
             !diag.errors().iter().any(|e| e.contains("list syntax")),
-            "Unexpected S044 diagnostic when allowed-tools absent: {:?}",
+            "Unexpected S045 diagnostic when allowed-tools absent: {:?}",
             diag.errors()
         );
     }
 
     #[test]
     #[serial_test::serial]
-    fn test_s044_no_double_report_with_s007() {
+    fn test_s045_no_double_report_with_s007() {
         let tmp = tempfile::tempdir().unwrap();
         let _guard = crate::test_helpers::CwdGuard::new();
         std::env::set_current_dir(tmp.path()).unwrap();
@@ -2951,19 +2951,19 @@ mod tests {
             &crate::config::ExcludeSet::default(),
         );
         validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
-        // S044 should fire exactly once
-        let s044_count = diag
+        // S045 should fire exactly once
+        let s045_count = diag
             .errors()
             .iter()
             .filter(|e| e.contains("list syntax"))
             .count();
         assert_eq!(
-            s044_count,
+            s045_count,
             1,
-            "Expected exactly 1 S044 diagnostic, got {s044_count}: {:?}",
+            "Expected exactly 1 S045 diagnostic, got {s045_count}: {:?}",
             diag.errors()
         );
-        // S007 should NOT fire for allowed-tools (suppressed in favor of S044)
+        // S007 should NOT fire for allowed-tools (suppressed in favor of S045)
         let s007_allowed_tools = diag
             .errors()
             .iter()
@@ -2972,7 +2972,7 @@ mod tests {
         assert_eq!(
             s007_allowed_tools,
             0,
-            "S007 should not fire for allowed-tools when S044 applies, got: {:?}",
+            "S007 should not fire for allowed-tools when S045 applies, got: {:?}",
             diag.errors()
         );
     }
