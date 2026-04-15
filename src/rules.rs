@@ -525,13 +525,14 @@ impl LintRule {
     pub fn default_severity(self) -> DefaultSeverity {
         match self {
             // ── Default-suppressed ──────────────────────────────────
-            Self::NameNotGerund | Self::BodyNoExamples => DefaultSeverity::Suppressed,
+            Self::NameNotGerund | Self::BodyNoExamples |
+            Self::BodyTooLong => DefaultSeverity::Suppressed,
 
             // ── Default-warning: enriched metadata ───────────────────
             Self::MarketplaceEnrichedMissing | Self::PluginEnrichedMissing |
 
             // ── Default-warning: style / quality (skills) ────────────
-            Self::DescTruncated | Self::BodyTooLong | Self::ConsecutiveBash |
+            Self::DescTruncated | Self::ConsecutiveBash |
             Self::NameVague | Self::DescTooShort | Self::BodyNoRefs |
             Self::BodyNoWorkflow | Self::RefNameGeneric |
             Self::DescVagueContent | Self::ScriptDepsMissing |
@@ -751,8 +752,8 @@ mod tests {
             .collect();
         assert_eq!(
             suppressed.len(),
-            2,
-            "Expected 2 default-suppressed rules, got {}",
+            3,
+            "Expected 3 default-suppressed rules, got {}",
             suppressed.len()
         );
     }
@@ -765,8 +766,8 @@ mod tests {
             .collect();
         assert_eq!(
             warnings.len(),
-            34,
-            "Expected 34 default-warning rules, got {}",
+            33,
+            "Expected 33 default-warning rules, got {}",
             warnings.len()
         );
     }

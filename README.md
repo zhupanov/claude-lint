@@ -25,7 +25,7 @@ configuration and plugins.
 ```yaml
 - uses: zhupanov/agent-lint@v2
   with:
-    version: "2.2.6"
+    version: "2.2.7"
     path: "."
 ```
 
@@ -36,12 +36,12 @@ Add to your `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/zhupanov/agent-lint
-    rev: v2.2.6  # pin to exact version
+    rev: v2.2.7  # pin to exact version
     hooks:
       - id: agent-lint
 ```
 
-> **Pin to an exact version** (e.g., `rev: v2.2.6`) to protect your
+> **Pin to an exact version** (e.g., `rev: v2.2.7`) to protect your
 > workflow from breaking changes. agent-lint is under active development
 > and minor/patch releases may change lint behavior. Run
 > `pre-commit autoupdate` when you are ready to upgrade.
@@ -114,7 +114,7 @@ to promote them to errors for stricter enforcement.
 
 | Input | Description | Default |
 |-------|-------------|---------|
-| `version` | Version of agent-lint (e.g., `2.2.6`) | Latest release |
+| `version` | Version of agent-lint (e.g., `2.2.7`) | Latest release |
 | `path` | Path to the repository to lint | `"."` |
 | `github-token` | GitHub token for resolving latest version | `""` (see below) |
 | `pedantic` | Enable pedantic mode (promote warnings to errors, except too-long) | `"false"` |
@@ -127,7 +127,7 @@ to promote them to errors for stricter enforcement.
 The `github-token` input is **optional** and has a narrow purpose: it is
 used solely to call the GitHub API to resolve the latest release version
 when no explicit `version` is provided. If you pin `version` (e.g.,
-`version: "2.2.6"`), no API call is made and the token is never used.
+`version: "2.2.7"`), no API call is made and the token is never used.
 
 **When omitted**, the action automatically falls back to the built-in
 `github.token` that GitHub provides to every workflow run. You do not need
@@ -147,12 +147,12 @@ GitHub App token with restricted permissions, and the default
 # Minimal -- token handled automatically:
 - uses: zhupanov/agent-lint@v2
   with:
-    version: "2.2.6"
+    version: "2.2.7"
 
 # Explicit version -- no token needed at all:
 - uses: zhupanov/agent-lint@v2
   with:
-    version: "2.2.6"
+    version: "2.2.7"
 ```
 
 ## Add CI to Your Repo
@@ -162,11 +162,11 @@ Give this prompt to Claude running in your repository:
 > **Add a GitHub Actions CI job called `agent-lint` that runs on pull requests
 > to `main`. The job should use `ubuntu-latest`, have a 5-minute timeout,
 > check out the repo with `actions/checkout@v4`, and then run
-> `zhupanov/agent-lint@v2` with `path: "."` and `version: "2.2.6"`. Add it
+> `zhupanov/agent-lint@v2` with `path: "."` and `version: "2.2.7"`. Add it
 > to the existing CI workflow if one exists, otherwise create
 > `.github/workflows/ci.yaml` with `permissions: contents: read`.**
 >
-> **Pin to an exact version** (e.g., `version: "2.2.6"`) to protect your
+> **Pin to an exact version** (e.g., `version: "2.2.7"`) to protect your
 > CI from breaking changes. agent-lint is under active development and
 > minor/patch releases may change lint behavior.
 
@@ -180,7 +180,7 @@ The resulting job should look like:
       - uses: actions/checkout@v4
       - uses: zhupanov/agent-lint@v2
         with:
-          version: "2.2.6"
+          version: "2.2.7"
           path: "."
 ```
 
@@ -266,7 +266,7 @@ checks (e.g., `plugin.json` must exist, `SECURITY.md` must exist). Use
 ### Default Severity
 
 Each rule has a compiled-in default severity: **error** (68 rules),
-**warn** (35 rules), or **off** (1 rule). Style, quality, and niche
+**warn** (33 rules), or **off** (3 rules). Style, quality, and niche
 rules fire as warnings by default. Use `error = [...]` in
 `agent-lint.toml` to promote them to errors, or `ignore = [...]` to
 suppress them. See [docs/rules.md](docs/rules.md) for the default
@@ -279,9 +279,9 @@ exclusive (using both exits with code 2).
 
 **`--pedantic`**: Promotes all warnings (both `warn`-listed and
 default-warning rules) to errors, except too-long rules (`name-too-long`,
-`desc-too-long`, `body-too-long`, `compat-too-long`). Rules in `ignore`
+`desc-too-long`, `compat-too-long`). Rules in `ignore`
 stay ignored. The default-suppressed rules (`name-not-gerund`,
-`body-no-examples`) stay suppressed unless explicitly enabled. Too-long
+`body-no-examples`, `body-too-long`) stay suppressed unless explicitly enabled. Too-long
 rules keep their current severity.
 
 **`--all`**: Forces every rule to fire as an error. The `ignore` and `warn`
@@ -292,9 +292,9 @@ plugin-only rules are not dispatched regardless of `--all`.
 
 ### Behavior Without Config
 
-If `agent-lint.toml` is absent, 68 rules fire as errors, 34
-style/quality/niche rules fire as warnings, and 2 rules
-(`name-not-gerund`, `body-no-examples`) are off. A malformed config file, unknown rule
+If `agent-lint.toml` is absent, 68 rules fire as errors, 33
+style/quality/niche rules fire as warnings, and 3 rules
+(`name-not-gerund`, `body-no-examples`, `body-too-long`) are off. A malformed config file, unknown rule
 code/name, or invalid glob pattern causes exit code 2.
 
 ### Diagnostic Output
