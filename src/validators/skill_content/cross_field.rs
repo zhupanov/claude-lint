@@ -3,13 +3,23 @@ use crate::frontmatter;
 use crate::rules::LintRule;
 use crate::validators::skills::SkillInfo;
 use regex::Regex;
+use std::collections::HashSet;
 use std::sync::LazyLock;
+
+use super::description::{RE_TRIGGER, STOPWORDS};
 
 // S028: $ARGUMENTS
 static RE_ARGS: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\$ARGUMENTS|\$\{ARGUMENTS\}").unwrap());
 
-pub(super) fn check_cross_field(info: &SkillInfo, diag: &mut DiagnosticCollector) {
+/// Minimum number of keywords required from description to run S053.
+const MIN_KEYWORDS: usize = 3;
+
+pub(super) fn check_cross_field(
+    info: &SkillInfo,
+    plugin_mode: bool,
+    diag: &mut DiagnosticCollector,
+) {
     // S028: $ARGUMENTS in body without argument-hint (only outside code fences)
     if crate::fence::lines_outside_fences(&info.body).any(|line| RE_ARGS.is_match(line))
         && !frontmatter::field_exists(&info.fm_lines, "argument-hint")
@@ -19,6 +29,64 @@ pub(super) fn check_cross_field(info: &SkillInfo, diag: &mut DiagnosticCollector
             &format!(
                 "{}: body uses $ARGUMENTS but frontmatter has no 'argument-hint' field",
                 info.path
+            ),
+        );
+    }
+
+    // S053: description/body keyword alignment (plugin-only)
+    if plugin_mode {
+        check_desc_body_alignment(info, diag);
+    }
+}
+
+fn extract_keywords(text: &str) -> HashSet<String> {
+    text.split_whitespace()
+        .map(|w| {
+            w.to_lowercase()
+                .trim_matches(|c: char| !c.is_alphanumeric())
+                .to_string()
+        })
+        .filter(|w| w.len() > 2 && !STOPWORDS.contains(&w.as_str()))
+        .collect()
+}
+
+fn check_desc_body_alignment(info: &SkillInfo, diag: &mut DiagnosticCollector) {
+    // Bail early on empty body (S020 covers this separately)
+    if info.body.trim().is_empty() {
+        return;
+    }
+
+    let desc = match frontmatter::get_field(&info.fm_lines, "description") {
+        Some(d) => d,
+        None => return, // S005 covers missing description
+    };
+
+    // Strip trigger phrases before extracting keywords
+    let stripped = RE_TRIGGER.replace_all(&desc, " ");
+    let desc_keywords = extract_keywords(&stripped);
+
+    let total = desc_keywords.len();
+    if total < MIN_KEYWORDS {
+        return; // Too few keywords to make a meaningful comparison
+    }
+
+    // Tokenize body text outside code fences (consistent with S028)
+    let body_text: String = crate::fence::lines_outside_fences(&info.body)
+        .collect::<Vec<_>>()
+        .join(" ");
+    let body_keywords = extract_keywords(&body_text);
+
+    let matched = desc_keywords.intersection(&body_keywords).count();
+
+    // Fire when fewer than 50% of description keywords appear in body
+    // Using integer math: matched * 2 < total
+    if matched * 2 < total {
+        diag.report(
+            LintRule::DescBodyMisalign,
+            &format!(
+                "{}: description keywords not reflected in body ({}/{} matched); \
+                 body should deliver what the description promises",
+                info.path, matched, total
             ),
         );
     }
