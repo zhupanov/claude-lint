@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 
 use crate::config::LintConfig;
-use crate::rules::LintRule;
+use crate::rules::{DefaultSeverity, LintRule};
 
 /// Diagnostic severity after config resolution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,12 +34,36 @@ pub struct DiagnosticCollector {
 }
 
 impl DiagnosticCollector {
-    /// Create a collector with default config (all rules enabled as errors).
-    /// Used by tests and when no config file is present.
+    /// Create a collector with default config. Rules fall through to their
+    /// compiled-in `default_severity()`: default-error rules fire as errors,
+    /// default-suppressed rules are silently skipped.
     #[cfg(test)]
     pub fn new() -> Self {
         Self {
             config: LintConfig::default(),
+            diagnostics: Vec::new(),
+            suppressed_count: 0,
+            writer: Box::new(io::sink()),
+        }
+    }
+
+    /// Create a collector with all rules enabled as errors, including
+    /// default-suppressed rules. Use this in tests that need to verify
+    /// default-suppressed rules fire correctly.
+    #[cfg(test)]
+    pub fn new_all_enabled() -> Self {
+        use crate::rules::{ALL_RULES, DefaultSeverity};
+        let error: std::collections::HashSet<crate::rules::LintRule> = ALL_RULES
+            .iter()
+            .filter(|r| r.default_severity() == DefaultSeverity::Suppressed)
+            .copied()
+            .collect();
+        let config = LintConfig {
+            error,
+            ..LintConfig::default()
+        };
+        Self {
+            config,
             diagnostics: Vec::new(),
             suppressed_count: 0,
             writer: Box::new(io::sink()),
@@ -56,19 +80,29 @@ impl DiagnosticCollector {
         }
     }
 
-    /// Report a diagnostic for the given rule. Checks config to determine
-    /// disposition: suppress (ignore), downgrade to warning, or record as error.
-    /// Non-suppressed diagnostics are written to the configured writer.
+    /// Report a diagnostic for the given rule. Checks config and default
+    /// severity to determine disposition. Priority: user ignore > user error >
+    /// user warn > compiled default severity.
     pub fn report(&mut self, rule: LintRule, msg: &str) {
+        // User ignore always wins — suppress and count.
         if self.config.ignore.contains(&rule) {
             self.suppressed_count += 1;
             return;
         }
 
-        let severity = if self.config.warn.contains(&rule) {
+        // User error promotes to error (overrides default severity).
+        // User warn downgrades to warning.
+        // Otherwise, fall back to compiled-in default severity.
+        let severity = if self.config.error.contains(&rule) {
+            Severity::Error
+        } else if self.config.warn.contains(&rule) {
             Severity::Warning
         } else {
-            Severity::Error
+            match rule.default_severity() {
+                DefaultSeverity::Error => Severity::Error,
+                // Default-suppressed: silently skip (no count, no output).
+                DefaultSeverity::Suppressed => return,
+            }
         };
 
         let label = match severity {
@@ -153,6 +187,7 @@ mod tests {
     fn ignored_rule_is_suppressed() {
         let config = LintConfig {
             ignore: HashSet::from([LintRule::PluginJsonMissing]),
+            error: HashSet::new(),
             warn: HashSet::new(),
             exclude: vec![],
         };
@@ -167,10 +202,12 @@ mod tests {
     fn warned_rule_is_warning() {
         let config = LintConfig {
             ignore: HashSet::new(),
+            error: HashSet::new(),
             warn: HashSet::from([LintRule::SecurityMdMissing]),
             exclude: vec![],
         };
         let mut diag = DiagnosticCollector::with_config(config);
+        // SecurityMdMissing is default-suppressed, but user warn overrides.
         diag.report(LintRule::SecurityMdMissing, "SECURITY.md missing");
         assert_eq!(diag.error_count(), 0);
         assert_eq!(diag.warning_count(), 1);
@@ -190,6 +227,7 @@ mod tests {
     fn mixed_severities() {
         let config = LintConfig {
             ignore: HashSet::from([LintRule::PluginJsonMissing]),
+            error: HashSet::new(),
             warn: HashSet::from([LintRule::SecurityMdMissing]),
             exclude: vec![],
         };
@@ -200,5 +238,51 @@ mod tests {
         assert_eq!(diag.error_count(), 1);
         assert_eq!(diag.warning_count(), 1);
         assert_eq!(diag.suppressed_count(), 1);
+    }
+
+    #[test]
+    fn error_set_promotes_to_error() {
+        let config = LintConfig {
+            ignore: HashSet::new(),
+            error: HashSet::from([LintRule::NameVague]),
+            warn: HashSet::new(),
+            exclude: vec![],
+        };
+        let mut diag = DiagnosticCollector::with_config(config);
+        // NameVague is default-suppressed; user error promotes it.
+        diag.report(LintRule::NameVague, "vague name");
+        assert_eq!(diag.error_count(), 1);
+        assert_eq!(diag.warning_count(), 0);
+        assert_eq!(diag.suppressed_count(), 0);
+    }
+
+    #[test]
+    fn default_suppressed_rule_is_silently_skipped() {
+        let config = LintConfig {
+            ignore: HashSet::new(),
+            error: HashSet::new(),
+            warn: HashSet::new(),
+            exclude: vec![],
+        };
+        let mut diag = DiagnosticCollector::with_config(config);
+        // NameVague is default-suppressed — silently skipped, no count.
+        diag.report(LintRule::NameVague, "vague name");
+        assert_eq!(diag.error_count(), 0);
+        assert_eq!(diag.warning_count(), 0);
+        assert_eq!(diag.suppressed_count(), 0);
+    }
+
+    #[test]
+    fn default_error_rule_fires_without_config() {
+        let config = LintConfig {
+            ignore: HashSet::new(),
+            error: HashSet::new(),
+            warn: HashSet::new(),
+            exclude: vec![],
+        };
+        let mut diag = DiagnosticCollector::with_config(config);
+        // PluginJsonMissing is default-error — fires as error.
+        diag.report(LintRule::PluginJsonMissing, "missing");
+        assert_eq!(diag.error_count(), 1);
     }
 }
