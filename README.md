@@ -54,6 +54,8 @@ mode automatically based on the presence of `.claude-plugin/`.
 | `version` | Version of agent-lint (e.g., `1.0.0`) | Latest release |
 | `path` | Path to the repository to lint | `"."` |
 | `github-token` | GitHub token for resolving latest version | `""` (see below) |
+| `pedantic` | Enable pedantic mode (all enabled rules become errors except too-long) | `"false"` |
+| `all` | Enable all mode (every rule fires as an error) | `"false"` |
 
 > **Note:** Windows runners are not supported.
 
@@ -115,12 +117,14 @@ The resulting job should look like:
 ## CLI Reference
 
 ```text
-agent-lint [--list-scripts] [PATH]
+agent-lint [--pedantic | --all] [--list-scripts] [PATH]
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--list-scripts` | Print all `.sh` script paths found in skill/script directories and exit |
+| `--pedantic` | Promote all enabled rules to errors (except too-long rules) |
+| `--all` | Force every rule to error, ignoring config overrides |
 
 ### Exit Codes
 
@@ -195,6 +199,24 @@ Each rule has a compiled-in default severity: **error** (68 rules) or
 **off** (36 rules). Style, quality, and niche rules are off by default.
 Use `error = [...]` in `agent-lint.toml` to enable them. See
 [docs/rules.md](docs/rules.md) for the default severity of each rule.
+
+### Strictness Modes
+
+Two CLI flags override the default severity model. They are mutually
+exclusive (using both exits with code 2).
+
+**`--pedantic`**: Promotes all rules that are in the `warn` list to errors,
+except rules whose name ends in `-too-long` (`name-too-long`,
+`desc-too-long`, `body-too-long`, `compat-too-long`). Rules in `ignore`
+stay ignored. Default-suppressed rules stay suppressed unless explicitly
+enabled via `error` in `agent-lint.toml`. Too-long rules keep their
+current severity.
+
+**`--all`**: Forces every rule to fire as an error. The `ignore` and `warn`
+lists are bypassed entirely — all 104 rules are promoted to errors. File
+exclusions (`exclude`) remain in effect. Note: `--all` applies to rules
+emittable by the detected lint mode. In Basic mode (`.claude/` only),
+plugin-only rules are not dispatched regardless of `--all`.
 
 ### Behavior Without Config
 

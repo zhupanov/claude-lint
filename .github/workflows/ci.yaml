@@ -76,6 +76,10 @@ jobs:
             cargo-${{ runner.os }}-
       - name: Self-lint
         run: cargo run -- .
+      - name: Self-lint (pedantic)
+        run: cargo run -- --pedantic .
+      - name: Self-lint (all)
+        run: cargo run -- --all .
       - name: Validate --list-scripts
         run: |
           scripts=$(cargo run -- --list-scripts .)
