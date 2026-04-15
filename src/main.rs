@@ -71,7 +71,7 @@ fn main() {
     };
 
     if positional.len() > 1 {
-        eprintln!("Usage: agent-lint [--help] [--version] [--list-scripts] [PATH]");
+        eprintln!("Usage: agent-lint [--help] [--version] [--list-scripts] [--pedantic] [--all] [PATH]");
         std::process::exit(2);
     }
 

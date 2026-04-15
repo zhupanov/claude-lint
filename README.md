@@ -54,7 +54,7 @@ mode automatically based on the presence of `.claude-plugin/`.
 | `version` | Version of agent-lint (e.g., `1.0.0`) | Latest release |
 | `path` | Path to the repository to lint | `"."` |
 | `github-token` | GitHub token for resolving latest version | `""` (see below) |
-| `pedantic` | Enable pedantic mode (all enabled rules become errors except too-long) | `"false"` |
+| `pedantic` | Enable pedantic mode (promote warn-listed rules to errors, except too-long) | `"false"` |
 | `all` | Enable all mode (every rule fires as an error) | `"false"` |
 
 > **Note:** Windows runners are not supported.

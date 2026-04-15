@@ -18,7 +18,7 @@ inputs:
     required: false
     default: ""
   pedantic:
-    description: "Enable pedantic mode: all enabled rules become errors (except length-cap rules). Mutually exclusive with 'all'."
+    description: "Enable pedantic mode: promote warn-listed rules to errors (except length-cap rules). Mutually exclusive with 'all'."
     required: false
     default: "false"
   all:

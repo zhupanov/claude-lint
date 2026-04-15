@@ -10,8 +10,8 @@ use std::path::Path;
 pub enum CliMode {
     #[default]
     Normal,
-    /// All enabled (non-suppressed, non-ignored) rules become errors.
-    /// Too-long rules are excluded from promotion.
+    /// Promotes warn-listed rules to errors (except too-long rules).
+    /// Respects ignore list. Default-suppressed rules stay suppressed.
     Pedantic,
     /// All 104 rules fire as errors. Ignores all TOML severity config.
     All,
