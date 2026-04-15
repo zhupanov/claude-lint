@@ -34,7 +34,8 @@ pub struct DiagnosticCollector {
 impl DiagnosticCollector {
     /// Create a collector with default config. Rules fall through to their
     /// compiled-in `default_severity()`: default-error rules fire as errors,
-    /// default-suppressed rules are silently skipped.
+    /// default-warning rules fire as warnings, default-suppressed rules are
+    /// silently skipped.
     #[cfg(test)]
     pub fn new() -> Self {
         Self {
@@ -227,7 +228,7 @@ mod tests {
             exclude: vec![],
         };
         let mut diag = DiagnosticCollector::with_config(config);
-        // SecurityMdMissing is default-suppressed, but user warn overrides.
+        // SecurityMdMissing is default-warning; user warn still takes priority.
         diag.report(LintRule::SecurityMdMissing, "SECURITY.md missing");
         assert_eq!(diag.error_count(), 0);
         assert_eq!(diag.warning_count(), 1);
@@ -269,7 +270,7 @@ mod tests {
             exclude: vec![],
         };
         let mut diag = DiagnosticCollector::with_config(config);
-        // NameVague is default-suppressed; user error promotes it.
+        // NameVague is default-warning; user error overrides to error.
         diag.report(LintRule::NameVague, "vague name");
         assert_eq!(diag.error_count(), 1);
         assert_eq!(diag.warning_count(), 0);
