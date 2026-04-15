@@ -73,7 +73,7 @@ CI/CD use cases.
   inheritance
 - `src/autofix.rs` -- Iterative autofix loop, 12 fixable rules,
   Unix-only chmod
-- `src/validators/` -- 23 validator modules, mode-gated dispatch (Basic
+- `src/validators/` -- 24 validator modules, mode-gated dispatch (Basic
   vs Plugin)
 - `action.yml` -- GitHub Action composite, no annotation formatting
 - `.pre-commit-hooks.yaml` -- Pre-commit integration with binary caching
