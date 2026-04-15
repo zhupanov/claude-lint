@@ -13,7 +13,7 @@ Either form can be used in `agent-lint.toml` to configure rule severity.
 **Strictness modes** (`--pedantic` / `--all`) override these defaults.
 `--pedantic` promotes warnings (both `warn`-listed and default-warning
 rules) to errors (except `name-too-long`, `desc-too-long`,
-`body-too-long`, `compat-too-long`). `--all` forces every rule to error
+`compat-too-long`). `--all` forces every rule to error
 regardless of config. See README for details.
 
 **Mode column key:**
@@ -92,7 +92,7 @@ regardless of config. See README for details.
 
 | Code | Name | Description | Mode | Default |
 |------|------|-------------|------|---------|
-| S019 | `body-too-long` | `SKILL.md` body exceeds 500 lines | Both | warn |
+| S019 | `body-too-long` | `SKILL.md` body exceeds 500 lines | Both | off |
 | S020 | `body-empty` | `SKILL.md` has no content after frontmatter | Both | error |
 | S021 | `consecutive-bash` | Consecutive bash code blocks that could be combined | Both | warn |
 | S022 | `backslash-path` | Windows-style backslash paths in skill content | Both | error |
