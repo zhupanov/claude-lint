@@ -13,7 +13,8 @@ Either form can be used in `agent-lint.toml` to configure rule severity.
 **Strictness modes** (`--pedantic` / `--all`) override these defaults.
 `--pedantic` promotes warnings (both `warn`-listed and default-warning
 rules) to errors, except for suppressed rules and too-long rules
-(`name-too-long`, `desc-too-long`, `compat-too-long`). `--all` forces
+(`name-too-long`, `desc-too-long`, `body-too-long`, `compat-too-long`).
+`--all` forces
 every rule to error regardless of config. See
 [configuration](configuration.md) for details.
 

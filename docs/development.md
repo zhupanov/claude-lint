@@ -56,6 +56,10 @@ src/
     +-- slack.rs         # K001: Slack fallback consistency
 docs/
 +-- rules.md             # Complete lint rules reference table
++-- cli.md               # CLI flags, exit codes, --autofix, --list-scripts
++-- configuration.md     # agent-lint.toml format, strictness modes
++-- github-action.md     # Action inputs, token configuration, CI setup
++-- development.md       # Local setup, Makefile targets, project structure, CI/CD
 ```
 
 ## CI/CD

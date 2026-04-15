@@ -60,9 +60,8 @@ exclusive (using both exits with code 2).
 
 **`--pedantic`**: Promotes all warnings (both `warn`-listed and
 default-warning rules) to errors, except too-long rules (`name-too-long`,
-`desc-too-long`, `compat-too-long`). Rules in `suppress` stay suppressed.
-Suppressed rules stay suppressed unless explicitly enabled. Too-long
-rules keep their current severity.
+`desc-too-long`, `body-too-long`, `compat-too-long`). Rules in `suppress`
+stay suppressed.
 
 **`--all`**: Forces every rule to fire as an error. The `suppress` and `warn`
 lists are bypassed entirely -- all 104 rules are promoted to errors. File

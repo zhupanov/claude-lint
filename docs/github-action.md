@@ -34,10 +34,10 @@ GitHub App token with restricted permissions, and the default
 `github.token` cannot reach the public releases endpoint (uncommon).
 
 ```yaml
-# Minimal -- token handled automatically:
+# Minimal -- version resolved via API, token handled automatically:
 - uses: zhupanov/agent-lint@v2
   with:
-    version: "2.3.0"
+    path: "."
 
 # Explicit version -- no token needed at all:
 - uses: zhupanov/agent-lint@v2
