@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.3.1] - 2026-04-15
+
+### Changed
+
+- Refactored documentation: extracted CLI, GitHub Action, Configuration, and Development sections into dedicated docs under `docs/`
+- Moved auto-fixable rules table from README to `docs/rules.md`
+- Renamed "Both" lint mode to "Always" and "off" default severity to "suppressed" in `docs/rules.md`
+
 ## [2.3.0] - 2026-04-15
 
 ### Changed
