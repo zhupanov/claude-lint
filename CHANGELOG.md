@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.39] - 2026-04-14
+
+### Fixed
+
+- Added missing S048 `ref-name-generic` and S049 `name-not-gerund` entries to `docs/rules.md`
+- Removed duplicate S044 `mcp-tool-unqualified` section from `docs/rules.md`
+- Fixed S044/S045 code mislabeling in CHANGELOG, code comments, and test names
+- Fixed stale rule count comments in validator dispatch code
+
 ## [1.0.38] - 2026-04-14
 
 ### Added
