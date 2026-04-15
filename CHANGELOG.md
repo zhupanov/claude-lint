@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.2.4] - 2026-04-15
+
+### Changed
+
+- Updated all documentation references from `@v1` to `@v2`
+- Added exact version pinning with advisories in CI and pre-commit examples
+- `/bump-version` now auto-updates explicit version numbers in README.md
+
 ## [2.2.3] - 2026-04-15
 
 ### Added
