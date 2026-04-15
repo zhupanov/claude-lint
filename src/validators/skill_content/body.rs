@@ -65,11 +65,9 @@ const SYNONYM_GROUPS: &[(&str, &[&str])] = &[
     ("field/element/control",          &["field", "element", "control", "widget"]),
     ("extract/retrieve/fetch",         &["extract", "retrieve", "fetch", "pull"]),
     ("function/method/routine",        &["function", "method", "routine", "procedure"]),
-    ("error/exception/failure",        &["exception", "failure", "fault"]),
+    ("exception/failure/fault",        &["exception", "failure", "fault"]),
     ("configuration/settings/preferences", &["configuration", "settings", "preferences"]),
     ("execute/invoke/launch",          &["execute", "invoke", "launch"]),
-    ("directory/folder",               &["directory", "folder"]),
-    ("parameter/argument",             &["parameter", "argument"]),
     ("component/module/package",       &["component", "module", "package"]),
 ];
 
