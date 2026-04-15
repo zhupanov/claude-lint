@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.2.3] - 2026-04-15
+
+### Added
+
+- Pre-commit hook support: users can now use agent-lint via the pre-commit framework without manual installation
+- `scripts/pre-commit-hook.sh` downloads and caches the pre-built binary from GitHub Releases with SHA-256 verification
+
 ## [2.2.2] - 2026-04-15
 
 ### Changed
