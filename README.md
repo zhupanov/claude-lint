@@ -106,8 +106,9 @@ any remaining issues with normal exit semantics (exit 1 if errors remain).
 | tools-list-syntax | S045 | YAML list → comma-separated scalar |
 | pwd-in-skill | G001 | `$PWD/` → `${CLAUDE_PLUGIN_ROOT}/` |
 
-Each fix is logged to stderr. Default-suppressed rules (S021, S045, etc.)
-must be enabled via `agent-lint.toml` to be detected and fixed.
+Each fix is logged to stderr. Default-warning rules (S021, S045, etc.)
+are now detected automatically; use `error = [...]` in `agent-lint.toml`
+to promote them to errors for stricter enforcement.
 
 ## GitHub Action Inputs
 
@@ -116,7 +117,7 @@ must be enabled via `agent-lint.toml` to be detected and fixed.
 | `version` | Version of agent-lint (e.g., `2.2.4`) | Latest release |
 | `path` | Path to the repository to lint | `"."` |
 | `github-token` | GitHub token for resolving latest version | `""` (see below) |
-| `pedantic` | Enable pedantic mode (promote warn-listed rules to errors, except too-long) | `"false"` |
+| `pedantic` | Enable pedantic mode (promote warnings to errors, except too-long) | `"false"` |
 | `all` | Enable all mode (every rule fires as an error) | `"false"` |
 
 > **Note:** Windows runners are not supported.
@@ -192,7 +193,7 @@ agent-lint [--pedantic | --all] [--list-scripts] [PATH]
 | Flag | Description |
 |------|-------------|
 | `--list-scripts` | Print all `.sh` script paths found in skill/script directories and exit |
-| `--pedantic` | Promote all enabled rules to errors (except too-long rules) |
+| `--pedantic` | Promote warnings to errors (except too-long rules) |
 | `--all` | Force every rule to error, ignoring config overrides |
 
 ### Exit Codes
@@ -264,22 +265,24 @@ checks (e.g., `plugin.json` must exist, `SECURITY.md` must exist). Use
 
 ### Default Severity
 
-Each rule has a compiled-in default severity: **error** (68 rules) or
-**off** (36 rules). Style, quality, and niche rules are off by default.
-Use `error = [...]` in `agent-lint.toml` to enable them. See
-[docs/rules.md](docs/rules.md) for the default severity of each rule.
+Each rule has a compiled-in default severity: **error** (68 rules),
+**warn** (35 rules), or **off** (1 rule). Style, quality, and niche
+rules fire as warnings by default. Use `error = [...]` in
+`agent-lint.toml` to promote them to errors, or `ignore = [...]` to
+suppress them. See [docs/rules.md](docs/rules.md) for the default
+severity of each rule.
 
 ### Strictness Modes
 
 Two CLI flags override the default severity model. They are mutually
 exclusive (using both exits with code 2).
 
-**`--pedantic`**: Promotes all rules that are in the `warn` list to errors,
-except rules whose name ends in `-too-long` (`name-too-long`,
+**`--pedantic`**: Promotes all warnings (both `warn`-listed and
+default-warning rules) to errors, except too-long rules (`name-too-long`,
 `desc-too-long`, `body-too-long`, `compat-too-long`). Rules in `ignore`
-stay ignored. Default-suppressed rules stay suppressed unless explicitly
-enabled via `error` in `agent-lint.toml`. Too-long rules keep their
-current severity.
+stay ignored. The one default-suppressed rule (`name-not-gerund`) stays
+suppressed unless explicitly enabled. Too-long rules keep their current
+severity.
 
 **`--all`**: Forces every rule to fire as an error. The `ignore` and `warn`
 lists are bypassed entirely — all 104 rules are promoted to errors. File
@@ -289,8 +292,9 @@ plugin-only rules are not dispatched regardless of `--all`.
 
 ### Behavior Without Config
 
-If `agent-lint.toml` is absent, 68 rules are enabled as errors and 36
-style/quality/niche rules are off. A malformed config file, unknown rule
+If `agent-lint.toml` is absent, 68 rules fire as errors, 35
+style/quality/niche rules fire as warnings, and 1 rule
+(`name-not-gerund`) is off. A malformed config file, unknown rule
 code/name, or invalid glob pattern causes exit code 2.
 
 ### Diagnostic Output

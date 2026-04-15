@@ -46,14 +46,19 @@ impl DiagnosticCollector {
     }
 
     /// Create a collector with all rules enabled as errors, including
-    /// default-suppressed rules. Use this in tests that need to verify
-    /// default-suppressed rules fire correctly.
+    /// default-suppressed and default-warning rules. Use this in tests
+    /// that need to verify non-default-error rules fire correctly.
     #[cfg(test)]
     pub fn new_all_enabled() -> Self {
         use crate::rules::{ALL_RULES, DefaultSeverity};
         let error: std::collections::HashSet<crate::rules::LintRule> = ALL_RULES
             .iter()
-            .filter(|r| r.default_severity() == DefaultSeverity::Suppressed)
+            .filter(|r| {
+                matches!(
+                    r.default_severity(),
+                    DefaultSeverity::Suppressed | DefaultSeverity::Warning
+                )
+            })
             .copied()
             .collect();
         let config = LintConfig {
@@ -109,6 +114,7 @@ impl DiagnosticCollector {
         } else {
             match rule.default_severity() {
                 DefaultSeverity::Error => Severity::Error,
+                DefaultSeverity::Warning => Severity::Warning,
                 // Default-suppressed: silently skip (no count, no output).
                 DefaultSeverity::Suppressed => return,
             }
@@ -279,10 +285,26 @@ mod tests {
             exclude: vec![],
         };
         let mut diag = DiagnosticCollector::with_config(config);
-        // NameVague is default-suppressed — silently skipped, no count.
-        diag.report(LintRule::NameVague, "vague name");
+        // NameNotGerund is default-suppressed — silently skipped, no count.
+        diag.report(LintRule::NameNotGerund, "not gerund");
         assert_eq!(diag.error_count(), 0);
         assert_eq!(diag.warning_count(), 0);
+        assert_eq!(diag.suppressed_count(), 0);
+    }
+
+    #[test]
+    fn default_warning_rule_fires_as_warning() {
+        let config = LintConfig {
+            ignore: HashSet::new(),
+            error: HashSet::new(),
+            warn: HashSet::new(),
+            exclude: vec![],
+        };
+        let mut diag = DiagnosticCollector::with_config(config);
+        // NameVague is default-warning — fires as warning without config.
+        diag.report(LintRule::NameVague, "vague name");
+        assert_eq!(diag.error_count(), 0);
+        assert_eq!(diag.warning_count(), 1);
         assert_eq!(diag.suppressed_count(), 0);
     }
 
