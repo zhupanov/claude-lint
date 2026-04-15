@@ -5,7 +5,7 @@
 
 ## Top 30 Dedicated AI Agent Config Linters
 
-Ranked by relevance to agent/AI config linting (descending), with star count as tiebreaker.
+Ranked by relevance to agent/AI config linting (descending); star count is used as a tiebreaker only within equal-relevance tiers.
 
 | # | Repo | Stars | Description | Key Differentiator |
 |---|------|-------|-------------|-------------------|
@@ -49,6 +49,7 @@ Ranked by relevance to agent/AI config linting (descending), with star count as 
 | [botingw/rulebook-ai](https://github.com/botingw/rulebook-ai) | 590 | Universal managed template for consistent AI agent rules across 10+ platforms. |
 | [lifedever/claude-rules](https://github.com/lifedever/claude-rules) | 156 | Coding standards for AI assistants. Auto-detect stack, generate rules. |
 | [promptfoo/promptfoo](https://github.com/promptfoo/promptfoo) | 20,097 | Test prompts, agents, RAGs. Red teaming. (Runtime eval, not static linting.) |
+| [YawLabs/ctxlint](https://github.com/YawLabs/ctxlint) | 2 | Lint AI agent context files (CLAUDE.md, AGENTS.md, etc.) against actual codebase. Extensible framework. |
 
 ## Sub-Niche Clusters
 
@@ -59,7 +60,7 @@ The 30 repos cluster into these sub-niches:
 - **AGENTS.md focused**: agents-lint, agent-rules-skill, samilozturk/agentlinter
 - **Cursor focused**: cursor-doctor
 - **Multi-platform**: ai-context-kit, skilllint, crag
-- **Security/compliance**: nod, akz4ol/agentlinter (3 stars, just below cutoff)
+- **Security/compliance**: nod
 - **LLM-powered**: lint-claude
 
 ## Key Insights
