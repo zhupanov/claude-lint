@@ -113,7 +113,7 @@ must be enabled via `agent-lint.toml` to be detected and fixed.
 
 | Input | Description | Default |
 |-------|-------------|---------|
-| `version` | Version of agent-lint (e.g., `1.0.0`) | Latest release |
+| `version` | Version of agent-lint (e.g., `2.2.3`) | Latest release |
 | `path` | Path to the repository to lint | `"."` |
 | `github-token` | GitHub token for resolving latest version | `""` (see below) |
 | `pedantic` | Enable pedantic mode (promote warn-listed rules to errors, except too-long) | `"false"` |
@@ -126,7 +126,7 @@ must be enabled via `agent-lint.toml` to be detected and fixed.
 The `github-token` input is **optional** and has a narrow purpose: it is
 used solely to call the GitHub API to resolve the latest release version
 when no explicit `version` is provided. If you pin `version` (e.g.,
-`version: "1.0.0"`), no API call is made and the token is never used.
+`version: "2.2.3"`), no API call is made and the token is never used.
 
 **When omitted**, the action automatically falls back to the built-in
 `github.token` that GitHub provides to every workflow run. You do not need
