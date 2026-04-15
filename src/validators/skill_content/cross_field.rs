@@ -40,12 +40,8 @@ pub(super) fn check_cross_field(
 }
 
 fn extract_keywords(text: &str) -> HashSet<String> {
-    text.split_whitespace()
-        .map(|w| {
-            w.to_lowercase()
-                .trim_matches(|c: char| !c.is_alphanumeric())
-                .to_string()
-        })
+    text.split(|c: char| !c.is_alphanumeric())
+        .map(|w| w.to_lowercase())
         .filter(|w| w.len() > 2 && !STOPWORDS.contains(&w.as_str()))
         .collect()
 }
@@ -75,6 +71,10 @@ fn check_desc_body_alignment(info: &SkillInfo, diag: &mut DiagnosticCollector) {
         .collect::<Vec<_>>()
         .join(" ");
     let body_keywords = extract_keywords(&body_text);
+
+    if body_keywords.is_empty() {
+        return; // No prose tokens outside fences — skip alignment check
+    }
 
     let matched = desc_keywords.intersection(&body_keywords).count();
 

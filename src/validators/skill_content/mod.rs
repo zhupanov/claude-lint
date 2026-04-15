@@ -2505,6 +2505,30 @@ mod tests {
 
     #[test]
     #[serial_test::serial]
+    fn test_s054_exactly_three_keywords_runs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        // "analyze" + "typescript" + "interfaces" = exactly 3 keywords
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Analyze TypeScript interfaces\n---\nThis skill analyzes TypeScript interfaces for correctness.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("description keywords not reflected in body")),
+            "S054 should not fire when keywords are aligned (exactly 3 keywords at MIN_KEYWORDS boundary)"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
     fn test_s054_empty_body_no_fire() {
         let tmp = tempfile::tempdir().unwrap();
         let _guard = crate::test_helpers::CwdGuard::new();
