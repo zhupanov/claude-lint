@@ -22,7 +22,7 @@ const GENERIC_NOUNS: &[&str] = &[
     "things", "stuff", "data", "files", "documents", "items", "tasks", "operations", "content",
 ];
 #[rustfmt::skip]
-const STOPWORDS: &[&str] = &[
+pub(super) const STOPWORDS: &[&str] = &[
     "the", "a", "an", "is", "are", "to", "for", "with", "and", "of", "in", "on", "it",
     "that", "this", "by", "from", "or", "as", "at", "be", "do", "so", "if", "no", "not",
     "but", "up", "out", "all", "can", "has", "had", "was", "were", "been", "have", "will",
@@ -33,7 +33,7 @@ const STOPWORDS: &[&str] = &[
 // S016/S017: Description quality (plugin-only)
 static RE_PERSON: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\b(I|you|we|my|your|our)\b").unwrap());
-static RE_TRIGGER: LazyLock<Regex> = LazyLock::new(|| {
+pub(super) static RE_TRIGGER: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)(use\s+when|use\s+this|use\s+for|trigger\s+when|do\s+not\s+trigger|\bwhen\b)")
         .unwrap()
 });

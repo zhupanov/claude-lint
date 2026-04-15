@@ -19,7 +19,7 @@ pub(super) static RE_BACKSLASH_PATH: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"[A-Za-z]:\\[A-Za-z]|\\[A-Za-z][A-Za-z0-9_-]*\\[A-Za-z]").unwrap()
 });
 
-/// Validate skill content for public skills (skills/). Runs all S009-S053 rules.
+/// Validate skill content for public skills (skills/). Runs all S009-S054 rules.
 pub fn validate_skill_content(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let skills = collect_skills("skills", exclude);
     for info in &skills {
@@ -33,7 +33,7 @@ pub fn validate_skill_content(diag: &mut DiagnosticCollector, exclude: &ExcludeS
 }
 
 /// Validate skill content for private skills (.claude/skills/).
-/// Runs only "both-mode" rules (excludes S015, S016, S017, S029, S033, S036, S037, S038, S046, S047, S049, S050, S051, S052, S053).
+/// Runs only "both-mode" rules (excludes S015, S016, S017, S029, S033, S036, S037, S038, S046, S047, S049, S050, S051, S052, S053, S054).
 pub fn validate_private_skill_content(diag: &mut DiagnosticCollector, exclude: &ExcludeSet) {
     let skills = collect_skills(".claude/skills", exclude);
     for info in &skills {
@@ -49,7 +49,7 @@ fn run_content_checks(info: &SkillInfo, plugin_mode: bool, diag: &mut Diagnostic
     body::check_body_content(info, plugin_mode, diag);
     frontmatter_fields::check_frontmatter_fields(info, diag);
     frontmatter_extended::check_frontmatter_extended(info, diag);
-    cross_field::check_cross_field(info, diag);
+    cross_field::check_cross_field(info, plugin_mode, diag);
     security::check_content_security(info, diag);
     mcp::check_mcp_tool_refs(info, diag);
 }
@@ -1291,7 +1291,7 @@ mod tests {
     #[test]
     fn test_new_rules_lookup_by_code_and_name() {
         use crate::rules::LintRule;
-        // Verify S009-S052 rules round-trip via code and name lookups
+        // Verify S009-S054 rules round-trip via code and name lookups
         let new_rules = [
             ("S009", "name-too-long"),
             ("S010", "name-invalid-chars"),
@@ -1338,6 +1338,7 @@ mod tests {
             ("S051", "script-deps-missing"),
             ("S052", "script-verify-missing"),
             ("S053", "terminology-inconsistent"),
+            ("S054", "desc-body-misalign"),
         ];
         for (code, name) in &new_rules {
             assert!(
@@ -2383,6 +2384,169 @@ mod tests {
                 .iter()
                 .any(|e| e.contains("verification/validation")),
             "S052 should fire when no verify"
+        );
+    }
+
+    // ── S054: desc-body-misalign ──────────────────────────────────────
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s054_misaligned_desc_body_fires() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Kubernetes deployment scaling orchestration\n---\nThis skill handles testing and linting of source code.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            diag.errors()
+                .iter()
+                .any(|e| e.contains("description keywords not reflected in body")),
+            "S054 should fire when description keywords are absent from body"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s054_aligned_desc_body_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Extract PDF tables and merge documents\n---\nThis skill extracts tables from PDF files and merges documents together.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("description keywords not reflected in body")),
+            "S054 should not fire when description keywords appear in body"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s054_short_description_skips() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Parse YAML\n---\nThis skill does something completely unrelated.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("description keywords not reflected in body")),
+            "S054 should skip when description has fewer than 3 keywords"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s054_private_mode_skips() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all(".claude/skills/my-skill").unwrap();
+        std::fs::write(
+            ".claude/skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Kubernetes deployment scaling orchestration\n---\nThis skill handles testing and linting of source code.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_private_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("description keywords not reflected in body")),
+            "S054 should not fire in private (both) mode"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s054_trigger_phrase_stripped() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Use when you need Kubernetes deployment scaling\n---\nThis skill manages Kubernetes deployment and scaling of pods.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("description keywords not reflected in body")),
+            "S054 should strip trigger phrases before extracting keywords"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s054_exactly_three_keywords_runs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        // "analyze" + "typescript" + "interfaces" = exactly 3 keywords
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Analyze TypeScript interfaces\n---\nThis skill analyzes TypeScript interfaces for correctness.\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("description keywords not reflected in body")),
+            "S054 should not fire when keywords are aligned (exactly 3 keywords at MIN_KEYWORDS boundary)"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_s054_empty_body_no_fire() {
+        let tmp = tempfile::tempdir().unwrap();
+        let _guard = crate::test_helpers::CwdGuard::new();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        std::fs::create_dir_all("skills/my-skill").unwrap();
+        std::fs::write(
+            "skills/my-skill/SKILL.md",
+            "---\nname: my-skill\ndescription: Kubernetes deployment scaling orchestration\n---\n",
+        )
+        .unwrap();
+        let mut diag = DiagnosticCollector::new();
+        validate_skill_content(&mut diag, &crate::config::ExcludeSet::default());
+        assert!(
+            !diag
+                .errors()
+                .iter()
+                .any(|e| e.contains("description keywords not reflected in body")),
+            "S054 should not fire when body is empty (S020 handles that)"
         );
     }
 
