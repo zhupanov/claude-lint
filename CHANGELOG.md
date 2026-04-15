@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.2.6] - 2026-04-15
+
+### Changed
+
+- Suppressed `body-no-examples` (S047) by default — reduced default-warning count from 35 to 34, default-suppressed count now 2
+
 ## [2.2.5] - 2026-04-15
 
 ### Changed
